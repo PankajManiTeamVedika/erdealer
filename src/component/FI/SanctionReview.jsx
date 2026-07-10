@@ -2,35 +2,95 @@ import React, { useState } from "react";
 import "../../assets/css/SanctionReview.css";
 import logo from "../../assets/image/logo.png";
 import { useNavigate } from "react-router-dom";
+import { API } from "../api/apiRoutes";
+
+// ASSUMPTION: only decision=1 (Approved) was confirmed via curl. Declined/Referred-back
+// codes are guessed — confirm the real values with the backend before relying on them.
+const DECISION_CODE = {
+  APPROVED: 1,
+  DECLINED: 2,
+  REFERRED_BACK: 3,
+};
 
 const SanctionReview = () => {
   const navigate = useNavigate();
-  
+
   const [sanctionNote, setSanctionNote] = useState("e.g. Approved with condition: post-dated reference verification within 7 days; cap LTV at 80% if on-road price revised.");
+  const [sanctionAmount, setSanctionAmount] = useState("150000");
   const [showReferModal, setShowReferModal] = useState(false);
   const [referBackNote, setReferBackNote] = useState("");
-  
-  const handleApprove = () => {
-    alert("Sanction approved! Proceeding to next stage...");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  // POST /save-sanction expects application/x-www-form-urlencoded, not JSON.
+  const submitSanctionDecision = async (decision, note) => {
+    const kycId = localStorage.getItem("applicant_kyc_id") || "1";
+    const empId = localStorage.getItem("emp_id") || "1";
+
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const body = new URLSearchParams({
+        kyc_id: kycId,
+        emp_id: empId,
+        decision: String(decision),
+        sanction_amt: sanctionAmount,
+        sanction_note: note,
+      });
+
+      const res = await fetch(API.SANCTION_SAVE_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data?.status === false || data?.success === false) {
+        throw new Error(data?.message || `Save failed (HTTP ${res.status})`);
+      }
+
+      return true;
+    } catch (err) {
+      setError(err.message || "Something went wrong while saving the sanction decision.");
+      return false;
+    } finally {
+      setIsSubmitting(false);
+    }
   };
-  
-  const handleDecline = () => {
-    alert("Sanction declined. Application closed.");
+
+  const handleApprove = async () => {
+    const ok = await submitSanctionDecision(DECISION_CODE.APPROVED, sanctionNote);
+    if (ok) {
+      alert("Sanction approved! Proceeding to next stage...");
+      navigate("/vehicle-delivery");
+    }
   };
-  
+
+  const handleDecline = async () => {
+    const ok = await submitSanctionDecision(DECISION_CODE.DECLINED, sanctionNote);
+    if (ok) {
+      alert("Sanction declined. Application closed.");
+    }
+  };
+
   const handleReferBack = () => {
     setShowReferModal(true);
   };
-  
-  const submitReferBack = () => {
+
+  const submitReferBack = async () => {
     if (!referBackNote.trim()) {
       alert("Please enter a reason for refer back");
       return;
     }
-    setShowReferModal(false);
-    alert(`Application referred back with note: ${referBackNote}`);
+    const ok = await submitSanctionDecision(DECISION_CODE.REFERRED_BACK, referBackNote);
+    if (ok) {
+      setShowReferModal(false);
+      alert(`Application referred back with note: ${referBackNote}`);
+    }
   };
-  
+
   const handleBack = () => {
     navigate("/field-investigation");
   };
@@ -165,7 +225,12 @@ const SanctionReview = () => {
           <div className="loan-details-row">
             <div className="loan-detail-item">
               <span className="label">Loan amount</span>
-              <span className="value">₹1,50,000</span>
+              <input
+                type="number"
+                className="sanction-note"
+                value={sanctionAmount}
+                onChange={(e) => setSanctionAmount(e.target.value)}
+              />
             </div>
             <div className="loan-detail-item">
               <span className="label">LTV</span>
@@ -193,6 +258,8 @@ const SanctionReview = () => {
           />
         </div>
 
+        {error && <div className="error-msg">{error}</div>}
+
         {/* Footer Info */}
         <div className="footer-info">
           <span>✓ Decision logged with authority ID, IP, timestamp</span>
@@ -201,10 +268,14 @@ const SanctionReview = () => {
 
         {/* Action Buttons */}
         <div className="action-buttons">
-          <button className="back-btn" onClick={handleBack}>← Back</button>
-          <button className="refer-btn" onClick={handleReferBack}>Refer back</button>
-          <button className="decline-btn" onClick={handleDecline}>Decline</button>
-          <button className="approve-btn" onClick={handleApprove}>Approve sanction →</button>
+          <button className="back-btn" onClick={handleBack} disabled={isSubmitting}>← Back</button>
+          <button className="refer-btn" onClick={handleReferBack} disabled={isSubmitting}>Refer back</button>
+          <button className="decline-btn" onClick={handleDecline} disabled={isSubmitting}>
+            {isSubmitting ? "Saving..." : "Decline"}
+          </button>
+          <button className="approve-btn" onClick={handleApprove} disabled={isSubmitting}>
+            {isSubmitting ? "Saving..." : "Approve sanction →"}
+          </button>
         </div>
       </div>
 
@@ -221,8 +292,10 @@ const SanctionReview = () => {
               rows="4"
             />
             <div className="modal-buttons">
-              <button className="modal-cancel" onClick={() => setShowReferModal(false)}>Cancel</button>
-              <button className="modal-submit" onClick={submitReferBack}>Submit</button>
+              <button className="modal-cancel" onClick={() => setShowReferModal(false)} disabled={isSubmitting}>Cancel</button>
+              <button className="modal-submit" onClick={submitReferBack} disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : "Submit"}
+              </button>
             </div>
           </div>
         </div>

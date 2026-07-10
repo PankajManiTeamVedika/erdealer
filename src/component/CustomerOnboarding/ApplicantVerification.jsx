@@ -152,8 +152,8 @@ const verifyField = async (type, value = "") => {
                 mobile: mobile,
                 applicantType: "applicant",
                 termsAccepted: true,
-                aadhar_no: aadhaar,
-                loan_type_id: 5
+                loan_type_id:5,
+                aadhar_no: aadhaar
               })
             });
 
@@ -214,7 +214,7 @@ const verifyField = async (type, value = "") => {
         return; 
         break;
 
-      case "pan":
+      case "pan": {
       statusKey = "applicant_pan";
 
       const res = await fetch(`${API.verifyPan}`, {
@@ -227,7 +227,11 @@ const verifyField = async (type, value = "") => {
       });
 
       const result = await res.json();
-      if (result.success && result.pan_status === "VALID") {
+
+      // `pan_status` is the authoritative signal for PAN validity. `result.success` also
+      // reflects unrelated downstream steps (CB pre-hit, DB insert) bundled into the same
+      // response, so a valid PAN can still come back with success:false — don't gate on it.
+      if (result.pan_status === "VALID") {
 
           setVerifyStatus(prev => ({
             ...prev,
@@ -238,17 +242,22 @@ const verifyField = async (type, value = "") => {
           setApplicantName(result?.digio_response?.full_name);
           const leadId = result?.post_pan_processing?.insert?.lead_id;
           setLeadNo(leadId);
-          alert("PAN verified successfully ✅");
+
+          if (result.success) {
+            alert("PAN verified successfully ✅");
+          } else {
+            alert(`PAN verified ✅, but ${result.message || "a background check failed"} — you can continue.`);
+          }
 
         } else {
           setVerifyStatus(prev => ({
             ...prev,
             applicant_pan: "failed"
           }));
-           alert("PAN verification failed ❌");
+           alert(result.message || "PAN verification failed ❌");
         }
-        return; 
-      // break;
+        return;
+      }
 
      case "cibil":
         statusKey = "applicant_cibil";
@@ -322,7 +331,7 @@ const verifyField = async (type, value = "") => {
         return;
         
         
-        case "copan":
+        case "copan": {
   statusKey = "co_applicant_pan";
 
   const coRes = await fetch(`${API.coverifyPan}`, {
@@ -336,23 +345,32 @@ const verifyField = async (type, value = "") => {
 
   const coResult = await coRes.json();
 
-  if (coResult.success && coResult.pan_status === "VALID") {
+  // `pan_status` is the authoritative signal for PAN validity, same as the main
+  // applicant's PAN case — `success` also reflects unrelated post-processing
+  // (CB pre-hit, VMFI) bundled into the same response.
+  if (coResult.pan_status === "VALID") {
     setVerifyStatus(prev => ({
       ...prev,
       co_applicant_pan: "verified"
     }));
 
     setCoApplicantName(coResult?.digio_response?.full_name);  // co-applicant name setter
-    alert("Co-applicant PAN verified successfully ✅");
+
+    if (coResult.success) {
+      alert("Co-applicant PAN verified successfully ✅");
+    } else {
+      alert(`Co-applicant PAN verified ✅, but ${coResult.message || "a background check failed"} — you can continue.`);
+    }
 
   } else {
     setVerifyStatus(prev => ({
       ...prev,
       co_applicant_pan: "failed"
     }));
-    alert("Co-applicant PAN verification failed ❌");
+    alert(coResult.message || "Co-applicant PAN verification failed ❌");
   }
   return;
+  }
   case "coaadhaar":
         statusKey = "co_aadhaar";
         apiUrl = `${API.ekycCoApplicantLinkGenerate}`;
@@ -456,7 +474,7 @@ const verifyField = async (type, value = "") => {
         }));
 
         const preRes = await fetch(
-          `https://uat.teamvedika.com/processWebCbHits`,
+          `http://20.219.130.232:8080/lead_gen/processWebCbHits`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },

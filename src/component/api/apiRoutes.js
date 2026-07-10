@@ -22,6 +22,11 @@ export const API = {
    CUSTOMERS_STAGE3: `${BASE_URL}/customers/stage3`,
    CUSTOMER_DETAILS: `${BASE_URL}/customer`,
    FI_SAVE_API: `${BASE_URL}/fi/save`,
+   // Real, confirmed-working implementation (per curl test). Same raw-IP caveat as
+   // FI_SAVE_API: plain http:// on an IP — browsers will block this with CORS/mixed-content
+   // when called from an https-served app until it's proxied or fronted by an HTTPS domain.
+   SANCTION_SAVE_API: `https://uat.teamvedika.com/api/er-loan/save-sanction`,
+   INITIATE_MANDATE_API: `https://uat.teamvedika.com/api/er-loan/initiate-mandate`,
 
   //  Customer Onboarding ThirdParty
     generateOtp: `${BASE_URL_CUSTOMER}/auth/otp/generate`,

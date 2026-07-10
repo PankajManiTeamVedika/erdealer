@@ -1,8 +1,34 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "../../assets/css/OfferSummary.css";
 import logo from "../../assets/image/logo.png";
 import { useNavigate } from "react-router-dom";
 import { API } from "../api/apiRoutes";
+
+// Dealer subvention slabs by loan amount (₹) — each upper bound is inclusive, the next
+// slab starts one rupee above it.
+const DEALER_SUBVENTION_SLABS = [
+  { min: 60000, max: 150000, amount: 5900 },
+  { min: 150001, max: 175000, amount: 8260 },
+  { min: 175001, max: 185000, amount: 11800 },
+  { min: 185001, max: 220000, amount: 12980 },
+];
+
+const getDealerSubventionForLoanAmount = (loanAmount) => {
+  const amount = parseInt(loanAmount, 10);
+  if (!amount) return "";
+
+  const slab = DEALER_SUBVENTION_SLABS.find(
+    ({ min, max }) => amount >= min && amount <= max
+  );
+
+  return slab ? slab.amount : "";
+};
+
+// Used only to estimate the EMI shown to the dealer here — the backend determines and
+// stores the actual applicable interest rate, so this isn't displayed or sent in the payload.
+const INTEREST_RATE_ANNUAL = 30;
+// Threshold above which the EMI gets a warning style — informational only, doesn't block submission.
+const EMI_WARNING_THRESHOLD = 9400;
 
 const OfferSummary = () => {
   const navigate = useNavigate();
@@ -14,6 +40,7 @@ const OfferSummary = () => {
 const model = localStorage.getItem("model") || "N/A";
 const storedApp = localStorage.getItem("application_id");
   // Editable fields
+  const [vehicleType, setVehicleType] = useState("");
   const [batteryCapacity, setBatteryCapacity] = useState("");
   const [exShowroomPrice, setExShowroomPrice] = useState("");
   const [onRoadPrice, setOnRoadPrice] = useState("");
@@ -21,6 +48,8 @@ const storedApp = localStorage.getItem("application_id");
   const [tenure, setTenure] = useState("");
   const [processingFee, setProcessingFee] = useState("");
   const [dealerSubvention, setDealerSubvention] = useState("");
+  const [documentCharge, setDocumentCharge] = useState("");
+  const [insuranceAmount, setInsuranceAmount] = useState("");
 
   // Auto calculated
   const minDownPayment = Math.ceil(parseInt(onRoadPrice || 0) * 0.20);
@@ -32,6 +61,23 @@ const storedApp = localStorage.getItem("application_id");
     ? ((parseInt(loanAmount) / parseInt(onRoadPrice)) * 100).toFixed(1)
     : "0.0";
   const isLtvValid = parseFloat(ltvRatio) <= 80;
+
+  // Monthly EMI, auto-calculated from loan amount, tenure and the fixed policy interest rate.
+  const principal = parseInt(loanAmount || 0, 10);
+  const tenureMonths = parseInt(tenure || 0, 10);
+  const monthlyRate = INTEREST_RATE_ANNUAL / 12 / 100;
+  const monthlyEmi = principal && tenureMonths
+    ? Math.round(
+        (principal * monthlyRate * Math.pow(1 + monthlyRate, tenureMonths)) /
+          (Math.pow(1 + monthlyRate, tenureMonths) - 1)
+      )
+    : 0;
+  const isEmiHigh = monthlyEmi > EMI_WARNING_THRESHOLD;
+
+  // Auto-fill dealer subvention from the loan amount slab; dealer can still override it.
+  useEffect(() => {
+    setDealerSubvention(getDealerSubventionForLoanAmount(loanAmount));
+  }, [loanAmount]);
 
 const handleAccept = async () => {
   if (!isAccepted) { alert("Please accept the terms and conditions"); return; }
@@ -49,12 +95,16 @@ const handleAccept = async () => {
   try {
     const payload = {
       application_id:        applicationId,
+      vehicle_type:          vehicleType,
       battery_capacity:      batteryCapacity,
       ex_showroom_price:     exShowroomPrice,
       on_road_price:         onRoadPrice,
       loan_amount:           loanAmount,
       tenure:                tenure,
+      monthly_emi:           monthlyEmi,
       processing_fee:        processingFee,
+      document_charge:       documentCharge,
+      insurance_amount:      insuranceAmount,
       dealer_subvention:     dealerSubvention,
       customer_down_payment: totalDownPayment,
       total_down_payment:    totalDownPayment,
@@ -145,6 +195,20 @@ const handleAccept = async () => {
 
             {/* Editable */}
             <div className="table-row">
+              <div className="row-label">Type of vehicle</div>
+              <div className="row-value">
+                <select
+                  className="offer-input"
+                  value={vehicleType}
+                  onChange={(e) => setVehicleType(e.target.value)}
+                >
+                  <option value="">Select vehicle type</option>
+                  <option value="Passenger">Passenger</option>
+                  <option value="E Cart">E Cart</option>
+                </select>
+              </div>
+            </div>
+            <div className="table-row">
               <div className="row-label">Battery capacity</div>
               <div className="row-value">
                 <input
@@ -198,7 +262,13 @@ const handleAccept = async () => {
               </div>
             </div>
             <div className="table-row">
-              <div className="row-label">Tenure</div>
+              <div className="row-label">Margin money (₹)</div>
+              <div className="row-value">
+                <strong>₹{totalDownPayment.toLocaleString('en-IN')}</strong>
+              </div>
+            </div>
+            <div className="table-row">
+              <div className="row-label">Tenure (months)</div>
               <div className="row-value">
                 <select
                   className="offer-input"
@@ -206,11 +276,27 @@ const handleAccept = async () => {
                   onChange={(e) => setTenure(e.target.value)}
                 >
                   <option value="">Select tenure</option>
-                  <option value="12 months">12 months</option>
-                  <option value="18 months">18 months</option>
-                  <option value="24 months">24 months</option>
-                  <option value="36 months">36 months</option>
+                  <option value="12">12</option>
+                  <option value="15">15</option>
+                  <option value="18">18</option>
+                  <option value="21">21</option>
+                  <option value="24">24</option>
+                  <option value="30">30</option>
+                  <option value="36">36</option>
                 </select>
+              </div>
+            </div>
+            <div className="table-row">
+              <div className="row-label">Monthly EMI (₹)</div>
+              <div className="row-value">
+                <strong style={{ color: isEmiHigh ? 'red' : 'green' }}>
+                  ₹{monthlyEmi.toLocaleString('en-IN')}
+                </strong>
+                {monthlyEmi > 0 && isEmiHigh && (
+                  <p style={{ color: 'red', fontSize: '12px', margin: '4px 0 0' }}>
+                    ⚠ EMI exceeds ₹{EMI_WARNING_THRESHOLD.toLocaleString('en-IN')}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -233,13 +319,23 @@ const handleAccept = async () => {
               />
             </div>
             <div className="charge-item">
-              <span>Dealer subvention (₹)</span>
+              <span>Document charge (₹)</span>
               <input
                 type="number"
                 className="offer-input"
-                placeholder="Enter dealer subvention"
-                value={dealerSubvention}
-                onChange={(e) => setDealerSubvention(e.target.value)}
+                placeholder="Enter document charge"
+                value={documentCharge}
+                onChange={(e) => setDocumentCharge(e.target.value)}
+              />
+            </div>
+            <div className="charge-item">
+              <span>Insurance amount (₹)</span>
+              <input
+                type="number"
+                className="offer-input"
+                placeholder="Enter insurance amount"
+                value={insuranceAmount}
+                onChange={(e) => setInsuranceAmount(e.target.value)}
               />
             </div>
             <div className="charge-item">
@@ -259,6 +355,16 @@ const handleAccept = async () => {
                   </p>
                 )}
               </div>
+            </div>
+            <div className="charge-item">
+              <span>Dealer subvention (₹)</span>
+              <input
+                type="number"
+                className="offer-input"
+                placeholder="Enter dealer subvention"
+                value={dealerSubvention}
+                onChange={(e) => setDealerSubvention(e.target.value)}
+              />
             </div>
             <div className="charge-item total">
               <span>Total down payment</span>

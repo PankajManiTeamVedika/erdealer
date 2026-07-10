@@ -4,6 +4,60 @@ import "../assets/css/style.css";
 import logo from "../assets/image/logo.png";
 import { API } from "../component/api/apiRoutes";
 
+// Some backend endpoints (e.g. /verify/gst) append stray trailing content (like a literal
+// "null") after a valid JSON body, which breaks res.json()'s strict JSON.parse. This pulls
+// out just the first well-formed JSON value and ignores whatever garbage follows it.
+const parseJsonLoose = (text) => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    const start = text.search(/[{[]/);
+    if (start === -1) throw new Error("No JSON found in response");
+    let depth = 0, inString = false, escape = false;
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (inString) {
+        if (escape) escape = false;
+        else if (ch === "\\") escape = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') inString = true;
+      else if (ch === "{" || ch === "[") depth++;
+      else if (ch === "}" || ch === "]") {
+        depth--;
+        if (depth === 0) return JSON.parse(text.slice(start, i + 1));
+      }
+    }
+    throw new Error("Unable to parse malformed JSON response");
+  }
+};
+
+// Registered names from PAN/GST/Aadhaar responses rarely match the form input byte-for-byte
+// (case, "M/S" prefixes, extra whitespace), so compare on a normalized form rather than "===".
+const normalizeName = (name = "") =>
+  name
+    .toString()
+    .toUpperCase()
+    .replace(/\b(M\/S|MR|MRS|MS|DR|S\/O|D\/O|W\/O)\b\.?/g, "")
+    .replace(/[^A-Z\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const namesMatch = (candidate, expectedNames = []) => {
+  const normalizedCandidate = normalizeName(candidate);
+  if (!normalizedCandidate) return false;
+  return expectedNames.some((expected) => {
+    const normalizedExpected = normalizeName(expected);
+    if (!normalizedExpected) return false;
+    return (
+      normalizedCandidate === normalizedExpected ||
+      normalizedCandidate.includes(normalizedExpected) ||
+      normalizedExpected.includes(normalizedCandidate)
+    );
+  });
+};
+
 const DealerOnboardingForm = () => {
   const location = useLocation();
   const selectedManufacturers = location.state?.selectedManufacturers || [];
@@ -116,6 +170,8 @@ const DealerOnboardingForm = () => {
 const [loadingField, setLoadingField] = useState(null);
 const [aadhaarTransactionId, setAadhaarTransactionId] = useState(null);
 
+
+
 const verifyField = async (type, value = "") => {
   let payload = {}, statusKey = "", apiUrl = "";
 
@@ -123,13 +179,46 @@ const verifyField = async (type, value = "") => {
     setLoadingField(type); // start loader
 
     switch(type){
-      case "pan":
-        if (value === form.owner_pan) statusKey = "owner_pan_verify_status";
-        else if (value === form.firm_pan) statusKey = "firm_pan_verify_status";
+      case "pan": {
+        const isOwnerPan = value === form.owner_pan;
+        statusKey = isOwnerPan ? "owner_pan_verify_status" : "firm_pan_verify_status";
+        // Firm PAN is often the individual owner's PAN (proprietorship) but can also be
+        // registered under the business/showroom name, so either counts as a match.
+        const expectedNames = isOwnerPan
+          ? [form.owner_name]
+          : [form.owner_name, form.showroom_name];
 
         payload = { id_no: value };
         apiUrl = `${API.DEALERS}/verify/pan`;
-        break;
+
+        const res = await fetch(apiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+
+        if (!(result.status && result.data?.status === "VALID")) {
+          setVerifyStatus(prev => ({ ...prev, [statusKey]: "failed" }));
+          alert(`${isOwnerPan ? "Owner" : "Firm"} PAN verification failed ❌ (Invalid PAN)`);
+          return;
+        }
+
+        const panName = result.data?.full_name || "";
+        if (!namesMatch(panName, expectedNames)) {
+          setVerifyStatus(prev => ({ ...prev, [statusKey]: "failed" }));
+          alert(
+            `${isOwnerPan ? "Owner" : "Firm"} PAN name "${panName}" does not match ${
+              isOwnerPan ? "Owner Name" : "Owner Name / Showroom Name as per GST"
+            } ❌`
+          );
+          return;
+        }
+
+        setVerifyStatus(prev => ({ ...prev, [statusKey]: "verified" }));
+        alert(`${isOwnerPan ? "Owner" : "Firm"} PAN verified successfully ✅`);
+        return;
+      }
 
       case "aadhaar":
         statusKey = "aadhaar_ekyc_status";
@@ -173,11 +262,79 @@ const verifyField = async (type, value = "") => {
         }
         break;
 
-      case "gst":
-        payload = { gst_number: form.gst_number };
+     case "gst": {
         statusKey = "gstin_verify_status";
         apiUrl = `${API.DEALERS}/verify/gst`;
+
+        const gstin = (form.gst_number || "").trim().toUpperCase();
+        const gstinPattern = /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}\d[Z]{1}[A-Z\d]{1}$/;
+
+        if (!gstinPattern.test(gstin)) {
+          setVerifyStatus(prev => ({ ...prev, [statusKey]: "failed" }));
+          alert("Enter a valid 15-character GSTIN before verifying ❌");
+          return;
+        }
+
+        payload = {
+          gstin,
+          client_ref_num: `GST-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        };
+
+        try {
+          setVerifyStatus(prev => ({ ...prev, [statusKey]: "running" }));
+
+          const res = await fetch(apiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+
+          if (!res.ok) {
+            setVerifyStatus(prev => ({ ...prev, [statusKey]: "failed" }));
+            alert(`GST verification failed ❌ (server returned ${res.status})`);
+            return;
+          }
+
+          const rawText = await res.text();
+          const result = parseJsonLoose(rawText);
+
+          const isVerified =
+            result?.http_response_code === 200 &&
+            result?.result &&
+            Object.keys(result.result).length > 0;
+
+          if (isVerified) {
+            const taxpayer = result.result?.taxpayerDetails || {};
+            // tradeNam ("M/S RAZA AUTO") is the registered trade name; lgnm is the
+            // proprietor/legal name — fall back to it when no trade name is on file.
+            const gstRegisteredName = taxpayer.tradeNam || taxpayer.lgnm || "";
+
+            if (!namesMatch(gstRegisteredName, [form.showroom_name])) {
+              setVerifyStatus(prev => ({ ...prev, [statusKey]: "failed" }));
+              alert(
+                `GST registered name "${gstRegisteredName}" does not match Showroom Name as per GST ❌`
+              );
+              return;
+            }
+
+            setVerifyStatus(prev => ({
+              ...prev,
+              [statusKey]: "verified",
+              gstin_number: gstin
+            }));
+            alert("GST verification successful ✅");
+          } else {
+            setVerifyStatus(prev => ({ ...prev, [statusKey]: "failed" }));
+            console.error("GST API response:", result);
+            alert(result?.message || "GST verification failed ❌");
+          }
+        } catch (err) {
+          console.error("GST verification error:", err);
+          setVerifyStatus(prev => ({ ...prev, [statusKey]: "failed" }));
+          alert("GST verification error ❌");
+        }
         break;
+      }
 
       case "mobile":
         payload = { mobile: form.owner_contact };
@@ -194,7 +351,7 @@ const verifyField = async (type, value = "") => {
       default: return;
     }
 
-    if(type !== "aadhaar"){ 
+    if(type !== "aadhaar" && type !== "gst" && type !== "pan"){
       const res = await fetch(apiUrl, {
         method: "POST",
         headers: {"Content-Type":"application/json"},
@@ -202,14 +359,9 @@ const verifyField = async (type, value = "") => {
       });
       const result = await res.json();
 
-      if(type==="pan" && result.status && result.data?.status === "INVALID"){
-        setVerifyStatus(prev => ({ ...prev, [statusKey]: "failed" }));
-        alert(`${type.toUpperCase()} verification failed ❌ (Invalid PAN)`);
-      } else {
-        setVerifyStatus(prev => ({ ...prev, [statusKey]: result.status ? "verified" : "failed" }));
-        if(result.status) alert(`${type.toUpperCase()} verification successful ✅`);
-        else alert(`${type.toUpperCase()} verification failed ❌`);
-      }
+      setVerifyStatus(prev => ({ ...prev, [statusKey]: result.status ? "verified" : "failed" }));
+      if(result.status) alert(`${type.toUpperCase()} verification successful ✅`);
+      else alert(`${type.toUpperCase()} verification failed ❌`);
     }
 
   } catch(err){
@@ -486,24 +638,33 @@ const verifyField = async (type, value = "") => {
               </div>
 
               <div className="form-group">
-                <label>GST Number *</label>
-                <div className="verify-input-row">
-                  <input
-                    type="text"
-                    name="gst_number"
-                    value={form.gst_number}
-                    onChange={handleChange}
-                    placeholder="Enter GST number"
-                    required
-                  />
-                 
-                    <InputVerifyButton
-                      statusKey="gstin_verify_status"
-                      onClick={() => verifyField("gst")}
-                      loading={loadingField === "gst"}
+                  <label>GST Number *</label>
+                  <div className="verify-input-row">
+                    <input
+                      type="text"
+                      name="gst_number"
+                      value={form.gst_number}
+                      onChange={handleChange}
+                      placeholder="Enter GST number"
+                      required
                     />
+
+                    <button
+                      type="button"
+                      className={`input-verify-btn ${
+                        verifyStatus.gstin_verify_status === "verified" ? "verified" : ""
+                      }`}
+                      onClick={() => verifyField("gst")}
+                      disabled={loadingField === "gst"}
+                    >
+                      {loadingField === "gst"
+                        ? "Verifying..."
+                        : verifyStatus.gstin_verify_status === "verified"
+                        ? "Verified"
+                        : "Verify"}
+                    </button>
+                  </div>
                 </div>
-              </div>
 
               <div className="form-group full-width">
                 <label>Showroom Address *</label>
@@ -757,10 +918,10 @@ const verifyField = async (type, value = "") => {
 
               <label className="upload-card">
                 <div>
-                  <h4>Service Centre Photo</h4>
-                  <p>Optional · Adds additional verification</p>
+                  <h4>● Service Centre Photo *</h4>
+                  <p>Geo-tag enabled service centre image</p>
                 </div>
-                <input type="file" />
+                <input type="file" required />
               </label>
 
               <div className="upload-card">
@@ -919,49 +1080,6 @@ const verifyField = async (type, value = "") => {
             </li>
           </ul>
 
-          <div className="progress-bar">
-            <div style={{ width: "52%" }}></div>
-          </div>
-
-          <div className="auto-verif-card">
-            <div className="auto-verif-header">
-              <div>
-                <h3>Auto-Verifications</h3>
-                <p>Live verification status</p>
-              </div>
-              <span className="live-badge">● LIVE</span>
-            </div>
-
-            <div className="auto-verif-list">
-             <InputVerifyButton label="Firm PAN" statusKey="firm_pan_verify_status" />
-              <InputVerifyButton label="Owner PAN" statusKey="owner_pan_verify_status" />
-              <InputVerifyButton label="GSTIN" statusKey="gstin_verify_status" />
-              <InputVerifyButton label="Aadhaar EKYC" statusKey="aadhaar_ekyc_status" />
-              <InputVerifyButton label="Mobile OTP" statusKey="mobile_otp_verified" />
-              <InputVerifyButton label="Bank Penny-drop" statusKey="bank_penny_drop_verified" />
-
-              <div className="verif-item">
-                <span className="verif-name">CIBIL Commercial</span>
-                <span className="verif-status submit">On Submit</span>
-              </div>
-
-              <div className="verif-item">
-                <span className="verif-name">Blacklist Scrub</span>
-                <span className="verif-status submit">On Submit</span>
-              </div>
-            </div>
-          </div>
-
-          <p className="progress-percent">Completion 52%</p>
-
-          <div className="routing-box">
-            <h4>Predicted Routing</h4>
-            <p>Maker - Checker</p>
-            <p>
-              If PAN, GST, bank details and documents are verified, dealer
-              application will move for approval. Otherwise manual review needed.
-            </p>
-          </div>
         </aside>
       </div>
 

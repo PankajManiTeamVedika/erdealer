@@ -16,6 +16,7 @@ import HoDashboard from "./component/HoDashboard";
 import DealerDetails from "./component/DealerDetails";
 import FIDashboard from "./component/FI/FIDashboard";
 import CustomerDetails from "./component/FI/CustomerDetails";
+import LoanExecution from "./component/LoanExecution";
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
       <Route path="/dealer-details/:dealerId" element={<DealerDetails />} />
       <Route path="/fi-dashboard" element={<FIDashboard />} />
       <Route path="/customer-details/:customerId" element={<CustomerDetails />} />
+      <Route path="/loan-execution" element={<LoanExecution/>} />
     </Routes>
   );
 }

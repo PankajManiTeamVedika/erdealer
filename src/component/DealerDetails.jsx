@@ -7,7 +7,7 @@ import { API } from "../component/api/apiRoutes";
 const baseURL = "https://vfpl.teamvedika.com/dealer-api";
 
 const DealerDetails = () => {
-  const { customerID } = useParams();
+  const { dealerId } = useParams();
   const navigate = useNavigate();
   const [dealer, setDealer] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -17,7 +17,7 @@ const DealerDetails = () => {
     const fetchDealer = async () => { 
       try {
         setLoading(true);
-        const res = await fetch(`${API.CUSTOMER_DETAILS}/${customerID}?_=${Date.now()}`);
+        const res = await fetch(`${API.DEALERS}/${dealerId}`);
         const result = await res.json();
         console.log("Dealer API response:", result);
         if (result.status) {
@@ -33,7 +33,7 @@ const DealerDetails = () => {
       }
     };
     fetchDealer();
-  }, [customerID]);
+  }, [dealerId]);
 
   // inside DealerDetails.jsx component
     const handleApprove = async () => {
@@ -102,7 +102,6 @@ const DealerDetails = () => {
   const statusClass = displayStatus || "pending";
   const isPending = displayStatus === "pending";
 
-  const completionPercent = 80;
   const uploadedCount = dealer.documents?.length || 0;
 
   // Helper to get full image URL
@@ -228,32 +227,6 @@ const DealerDetails = () => {
               <li><span className="green"></span> Declaration</li>
               <li><span className={!isPending ? "green" : "gray"}></span> Final approval</li>
             </ul>
-            <div className="progress-bar"><div style={{ width: `${completionPercent}%` }}></div></div>
-            <p className="progress-percent">Completion {completionPercent}%</p>
-          </div>
-
-          {/* Auto-Verifications */}
-          <div className="auto-verif-card">
-            <div className="auto-verif-header">
-              <div><h3>Auto-Verifications</h3><p>Live verification status</p></div>
-              <span className="live-pulse">● LIVE</span>
-            </div>
-            <div className="verif-list">
-              <div className="verif-row"><span>PAN</span><span className={`status ${dealer.pan_verify_status === "verified" ? "success" : "pending"}`}>{dealer.pan_verify_status || "Pending"}</span></div>
-              <div className="verif-row"><span>GSTIN</span><span className={`status ${dealer.gstin_verify_status === "verified" ? "success" : "pending"}`}>{dealer.gstin_verify_status || "Pending"}</span></div>
-              <div className="verif-row"><span>Aadhaar EKYC</span><span className={`status ${dealer.aadhaar_ekyc_status === "verified" ? "success" : "pending"}`}>{dealer.aadhaar_ekyc_status || "Pending"}</span></div>
-              <div className="verif-row"><span>Mobile OTP</span><span className={`status ${dealer.mobile_otp_verified === "yes" ? "success" : "pending"}`}>{dealer.mobile_otp_verified === "yes" ? "Verified" : "Pending"}</span></div>
-              <div className="verif-row"><span>Bank Penny-drop</span><span className="status pending">Pending</span></div>
-              <div className="verif-row"><span>CIBIL Commercial</span><span className="status submit">On Submit</span></div>
-              <div className="verif-row"><span>Blacklist Scrub</span><span className="status submit">On Submit</span></div>
-            </div>
-          </div>
-
-          {/* Predicted Routing */}
-          <div className="routing-box">
-            <h4>Predicted Routing</h4>
-            <p>Maker - Checker</p>
-            <p>If PAN, GST, bank details and documents are verified, dealer application will move for approval. Otherwise manual review needed.</p>
           </div>
 
           {/* Action Buttons – Conditional */}

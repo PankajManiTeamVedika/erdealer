@@ -80,6 +80,20 @@ const FieldInvestigation = () => {
   const [pointB, setPointB] = useState("");
   const [expectedDailyEarning, setExpectedDailyEarning] = useState("");
 
+  // NEW: fields required by the real save-fi endpoint (confirmed via curl against the
+  // actual backend) that had no corresponding input at all.
+  const [personMet, setPersonMet] = useState("Applicant");
+  // ASSUMPTION: numeric code, confirm exact enum values with backend.
+  const [relationId, setRelationId] = useState("1");
+  const [residenceAddress, setResidenceAddress] = useState("");
+  const [applicantContact, setApplicantContact] = useState("");
+  const [distFromDealer, setDistFromDealer] = useState("");
+  const [modelName, setModelName] = useState(localStorage.getItem("model") || "");
+  const [erTotalPrice, setErTotalPrice] = useState("");
+  // ASSUMPTION: numeric code, confirm exact enum values with backend.
+  const [makeHouse, setMakeHouse] = useState("3");
+  const [smartphoneMobNo, setSmartphoneMobNo] = useState("");
+
   // Video PD State
   const [videoLink, setVideoLink] = useState("");
   const [transcriptionFile, setTranscriptionFile] = useState(null);
@@ -129,13 +143,24 @@ const FieldInvestigation = () => {
     return {
       kyc_id: kycId,
       emp_id: empId,
+      cycle: 1,
+      pd_no: 1,
+      person_met: personMet,
+      relation_id: parseInt(relationId, 10) || 1,
+      residence_dtl_address: residenceAddress,
+      contact_no_of_applicant: applicantContact,
+      dist_from_dealer: distFromDealer,
+      model_name: modelName,
+      er_totat_price: parseInt(erTotalPrice, 10) || 0,
       accomodation_type: ACCOMMODATION_TYPE_MAP[houseType] ?? null,
+      make_house: parseInt(makeHouse, 10) || null,
       year_of_known: YEAR_KNOWN_MAP[addressDuration] ?? null,
       total_family_member: parseInt(familyMembers, 10) || 0,
       non_earning_member: parseInt(dependents, 10) || 0,
       member1_self_declared_yearly_income:
         APPLICANT_INCOME_SLAB_ANNUAL[totalEarning] ?? 0,
       member1_smartphone_yn: smartphoneAvailable === "Yes" ? 1 : 0,
+      member1_smartphone_mob_no: smartphoneAvailable === "Yes" ? smartphoneMobNo : "",
       earning_member: hasOtherEarner === "Yes" ? 1 : 0,
       member2_nature_of_work: NATURE_OF_WORK_MAP[otherEarnerOccupation] ?? null,
       er_ownership_status: otherEarnerIncomeType,
@@ -148,6 +173,10 @@ const FieldInvestigation = () => {
       new_pointA: pointA,
       new_pointB: pointB,
       expected_daily_earning: parseInt(expectedDailyEarning, 10) || 0,
+      interest: 0,
+      amount: 0,
+      family_loan_obligation_monthly: 0,
+      migrant_member: 0,
     };
   };
 
@@ -155,22 +184,46 @@ const FieldInvestigation = () => {
   const handleSubmit = async () => {
    
 
-    if (!videoLink) {
-      setError("Please add Video PD / G-Meet link");
-      return;
-    }
-    if (!pointA || !pointB) {
-      setError("Please enter both route points (A and B)");
-      return;
-    }
-    if (!expectedDailyEarning) {
-      setError("Please enter expected daily earning");
-      return;
-    }
-    if (garData.color === "RED") {
-      setError(`Application auto-declined due to GAR Score (${garData.score}%)`);
-      return;
-    }
+    // if (!residenceAddress) {
+    //   setError("Please enter the residence address");
+    //   return;
+    // }
+    // if (applicantContact.length !== 10) {
+    //   setError("Please enter a valid 10-digit applicant contact number");
+    //   return;
+    // }
+    // if (!distFromDealer) {
+    //   setError("Please enter distance from dealer");
+    //   return;
+    // }
+    // if (!modelName) {
+    //   setError("Please enter the vehicle model name");
+    //   return;
+    // }
+    // if (!erTotalPrice) {
+    //   setError("Please enter the e-rickshaw total price");
+    //   return;
+    // }
+    // if (smartphoneAvailable === "Yes" && smartphoneMobNo.length !== 10) {
+    //   setError("Please enter a valid 10-digit smartphone number");
+    //   return;
+    // }
+    // if (!videoLink) {
+    //   setError("Please add Video PD / G-Meet link");
+    //   return;
+    // }
+    // if (!pointA || !pointB) {
+    //   setError("Please enter both route points (A and B)");
+    //   return;
+    // }
+    // if (!expectedDailyEarning) {
+    //   setError("Please enter expected daily earning");
+    //   return;
+    // }
+    // if (garData.color === "RED") {
+    //   setError(`Application auto-declined due to GAR Score (${garData.score}%)`);
+    //   return;
+    // }
 
     setError("");
     setIsSubmitting(true);
@@ -290,6 +343,93 @@ const FieldInvestigation = () => {
 
                 <div className="form-row">
                   <div className="form-group">
+                    <label>Person met</label>
+                    <select
+                      value={personMet}
+                      onChange={(e) => setPersonMet(e.target.value)}
+                      className="form-select"
+                    >
+                      <option>Applicant</option>
+                      <option>Spouse</option>
+                      <option>Other Family Member</option>
+                      <option>Neighbour</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Relation with applicant (code)</label>
+                    <input
+                      type="number"
+                      value={relationId}
+                      onChange={(e) => setRelationId(e.target.value)}
+                      className="form-input"
+                      placeholder="e.g. 1 (confirm code with backend)"
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group full-width">
+                    <label>Residence address</label>
+                    <textarea
+                      value={residenceAddress}
+                      onChange={(e) => setResidenceAddress(e.target.value)}
+                      className="form-input"
+                      placeholder="Enter full residence address as verified"
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Applicant contact number</label>
+                    <input
+                      type="tel"
+                      maxLength="10"
+                      value={applicantContact}
+                      onChange={(e) => setApplicantContact(e.target.value.replace(/\D/g, ""))}
+                      className="form-input"
+                      placeholder="10-digit mobile number"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Distance from dealer (km)</label>
+                    <input
+                      type="number"
+                      value={distFromDealer}
+                      onChange={(e) => setDistFromDealer(e.target.value)}
+                      className="form-input"
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Model name</label>
+                    <input
+                      type="text"
+                      value={modelName}
+                      onChange={(e) => setModelName(e.target.value)}
+                      className="form-input"
+                      placeholder="e.g. Power Plus"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>E-rickshaw total price (₹)</label>
+                    <input
+                      type="number"
+                      value={erTotalPrice}
+                      onChange={(e) => setErTotalPrice(e.target.value)}
+                      className="form-input"
+                      placeholder="e.g. 185000"
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
                     <label>Family members</label>
                     <input
                       type="number"
@@ -306,6 +446,17 @@ const FieldInvestigation = () => {
                       value={dependents}
                       onChange={(e) => setDependents(e.target.value)}
                       className="form-input"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Make of house (code)</label>
+                    <input
+                      type="number"
+                      value={makeHouse}
+                      onChange={(e) => setMakeHouse(e.target.value)}
+                      className="form-input"
+                      placeholder="e.g. 3 (confirm code with backend)"
                     />
                   </div>
                 </div>
@@ -336,6 +487,20 @@ const FieldInvestigation = () => {
                       <option value="No">No</option>
                     </select>
                   </div>
+
+                  {smartphoneAvailable === "Yes" && (
+                    <div className="form-group">
+                      <label>Smartphone mobile number</label>
+                      <input
+                        type="tel"
+                        maxLength="10"
+                        value={smartphoneMobNo}
+                        onChange={(e) => setSmartphoneMobNo(e.target.value.replace(/\D/g, ""))}
+                        className="form-input"
+                        placeholder="10-digit mobile number"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             )}
