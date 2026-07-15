@@ -317,6 +317,7 @@
 }
 
 .btn-primary {
+  display: inline-block;
   padding: 0.6rem 1.25rem;
   background: #3b82f6;
   color: white;
@@ -324,6 +325,7 @@
   border-radius: 10px;
   font-size: 0.875rem;
   font-weight: 500;
+  text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s;
@@ -339,6 +341,56 @@
   color: #64748b;
   margin-top: 0.25rem;
   display: block;
+}
+
+.pd-video-preview {
+  width: 100%;
+  max-width: 420px;
+  min-height: 200px;
+  background: #0f172a;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pd-video-preview video {
+  width: 100%;
+  max-height: 280px;
+  display: block;
+}
+
+.pd-video-placeholder {
+  color: #94a3b8;
+  font-size: 0.8rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.pd-stop-btn {
+  background: #ef4444;
+}
+
+.pd-stop-btn:hover {
+  background: #dc2626;
+}
+
+.pd-location-readout {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.pd-location-pending {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.pd-location-error {
+  color: #dc2626;
 }
 
 /* File Upload */

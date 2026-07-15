@@ -1,5 +1,5 @@
 import React from "react";
-import "../assets/css/style.css";
+import "../assets/css/ApplicationStatus.css";
 
 const ApplicationStatus = () => {
   const journey = [
@@ -52,139 +52,147 @@ const ApplicationStatus = () => {
   ];
 
   return (
-    <div className="modern-status-page">
-      <div className="status-header">
-        <div>
-          <p>Dealer Application</p>
-          <h1>Application Status</h1>
-        </div>
-
-        <div className="header-right">
-          <span>DLR-APP-2026-0142</span>
-          <button>View Profile</button>
-        </div>
-      </div>
-
-      <div className="summary-grid">
-        <div className="summary-card">
-          <p>Current Stage</p>
-          <h3>Under Review</h3>
-          <span className="orange-text">Risk verification pending</span>
-        </div>
-
-        <div className="summary-card">
-          <p>Application Age</p>
-          <h3>18 Hours</h3>
-          <span className="green-text">Within 24-hour SLA</span>
-        </div>
-
-        <div className="summary-card">
-          <p>CIBIL Commercial</p>
-          <h3>748</h3>
-          <span className="green-text">Good bureau score</span>
-        </div>
-
-        <div className="summary-card">
-          <p>Documents</p>
-          <h3>9 / 10</h3>
-          <span className="orange-text">1 query open</span>
-        </div>
-      </div>
-
-      <div className="query-alert">
-        <div className="alert-icon">!</div>
-
-        <div className="alert-content">
-          <div className="alert-top">
-            <span>ACTION NEEDED</span>
-            <small>1 of 1 query open</small>
+    <div className="app-status-page">
+      <div className="as-container">
+        {/* Header */}
+        <div className="as-header">
+          <div>
+            <p className="as-eyebrow">Dealer Application</p>
+            <h1>Application Status</h1>
           </div>
 
-          <h2>Bank account name needs your confirmation</h2>
-
-          <p>
-            Penny-drop on your cancelled cheque returned account name{" "}
-            <b>"RAJESH AUTO SERV"</b>. We need this to match the firm name on
-            PAN before we can proceed.
-          </p>
+          <div className="as-header-right">
+            <span className="as-app-id">DLR-APP-2026-0142</span>
+            <button className="as-profile-btn">View Profile</button>
+          </div>
         </div>
 
-        <button className="primary-btn">Respond Now</button>
-      </div>
+        {/* Summary cards */}
+        <div className="as-summary-grid">
+          <div className="as-summary-card">
+            <p>Current Stage</p>
+            <h3>Under Review</h3>
+            <span className="as-orange-text">Risk verification pending</span>
+          </div>
 
-      <div className="journey-card">
-        <div className="section-title">
-          <h3>Your Application Journey</h3>
-          <span>Live tracking</span>
+          <div className="as-summary-card">
+            <p>Application Age</p>
+            <h3>18 Hours</h3>
+            <span className="as-green-text">Within 24-hour SLA</span>
+          </div>
+
+          <div className="as-summary-card">
+            <p>CIBIL Commercial</p>
+            <h3>748</h3>
+            <span className="as-green-text">Good bureau score</span>
+          </div>
+
+          <div className="as-summary-card">
+            <p>Documents</p>
+            <h3>9 / 10</h3>
+            <span className="as-orange-text">1 query open</span>
+          </div>
         </div>
 
-        <div className="modern-journey">
-          {journey.map((item, index) => (
-            <div className="modern-step" key={index}>
-              <div className={`step-circle ${item.status}`}>
-                {item.status === "done" ? "✓" : index + 1}
-              </div>
+        {/* Query alert */}
+        <div className="as-query-alert">
+          <div className="as-alert-icon">!</div>
 
-              {index !== journey.length - 1 && (
-                <div className={`step-line ${item.status}`}></div>
-              )}
-
-              <h4>{item.title}</h4>
-              <p>{item.time}</p>
+          <div className="as-alert-content">
+            <div className="as-alert-top">
+              <span>ACTION NEEDED</span>
+              <small>1 of 1 query open</small>
             </div>
-          ))}
-        </div>
-      </div>
 
-      <div className="main-grid">
-        <div className="glass-card">
-          <div className="section-title">
-            <h3>Document Verification</h3>
-            <span>10 checks</span>
+            <h2>Bank account name needs your confirmation</h2>
+
+            <p>
+              Penny-drop on your cancelled cheque returned account name{" "}
+              <b>"RAJESH AUTO SERV"</b>. We need this to match the firm name on
+              PAN before we can proceed.
+            </p>
           </div>
 
-          <div className="document-list-modern">
-            {documents.map((doc, index) => (
-              <div className="doc-item" key={index}>
-                <div>
-                  <span className={`doc-status-dot ${doc.type}`}></span>
-                  <p>{doc.name}</p>
+          <button className="as-primary-btn">Respond Now</button>
+        </div>
+
+        {/* Journey */}
+        <div className="as-journey-card">
+          <div className="as-section-title">
+            <h3>Your Application Journey</h3>
+            <span>Live tracking</span>
+          </div>
+
+          <div className="as-journey">
+            {journey.map((item, index) => (
+              <div className="as-step" key={index}>
+                <div className={`as-step-circle ${item.status}`}>
+                  {item.status === "done" ? "✓" : index + 1}
                 </div>
 
-                <strong className={doc.type}>{doc.value}</strong>
+                {index !== journey.length - 1 && (
+                  <div className={`as-step-line ${item.status}`}></div>
+                )}
+
+                <h4>{item.title}</h4>
+                <p>{item.time}</p>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="glass-card">
-          <div className="section-title">
-            <h3>Activity Log</h3>
-            <span>Latest updates</span>
-          </div>
+        {/* Documents + Activity */}
+        <div className="as-main-grid">
+          <div className="as-card">
+            <div className="as-section-title">
+              <h3>Document Verification</h3>
+              <span>10 checks</span>
+            </div>
 
-          <div className="activity-modern">
-            {activities.map((item, index) => (
-              <div className="activity-row" key={index}>
-                <span className={`activity-line-dot ${item.type}`}></span>
+            <div className="as-doc-list">
+              {documents.map((doc, index) => (
+                <div className="as-doc-item" key={index}>
+                  <div className="as-doc-item-left">
+                    <span className={`as-dot ${doc.type}`}></span>
+                    <p>{doc.name}</p>
+                  </div>
 
-                <div>
-                  <h4>{item.title}</h4>
-                  <p>{item.desc}</p>
+                  <span className={`as-doc-value ${doc.type}`}>{doc.value}</span>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          <div className="as-card">
+            <div className="as-section-title">
+              <h3>Activity Log</h3>
+              <span>Latest updates</span>
+            </div>
+
+            <div className="as-activity-list">
+              {activities.map((item, index) => (
+                <div className="as-activity-row" key={index}>
+                  <span className={`as-activity-dot ${item.type}`}></span>
+
+                  <div>
+                    <h4>{item.title}</h4>
+                    <p>{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="support-card">
-        <div>
-          <h3>Need help with this application?</h3>
-          <p>Branch: Ranchi Main · RM: Anil Kumar · +91 9XXX-XXX-201</p>
+        {/* Support footer */}
+        <div className="as-support-card">
+          <div>
+            <h3>Need help with this application?</h3>
+            <p>Branch: Ranchi Main · RM: Anil Kumar · +91 9XXX-XXX-201</p>
+          </div>
+
+          <button>Call Branch</button>
         </div>
-
-        <button>Call Branch</button>
       </div>
     </div>
   );

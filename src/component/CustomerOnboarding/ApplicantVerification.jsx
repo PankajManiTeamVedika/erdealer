@@ -43,7 +43,14 @@ const ApplicantVerification = () => {
   const [loadingField, setLoadingField] = useState(null);
   const [applicantName, setApplicantName] = useState("");
   const [coApplicantName, setCoApplicantName] = useState("");
-  
+
+  // Raw third-party responses (Aadhaar/PAN/CB hit, applicant + co-applicant) kept
+  // alongside the derived verifyStatus flags so the full response can be submitted
+  // with Stage 1 for audit/record.
+  const [thirdPartyResponses, setThirdPartyResponses] = useState({});
+  const saveThirdPartyResponse = (key, data) =>
+    setThirdPartyResponses(prev => ({ ...prev, [key]: data }));
+
 
   // Vehicle State
 const [manufacturerList, setManufacturerList] = useState([]);
@@ -158,6 +165,7 @@ const verifyField = async (type, value = "") => {
             });
 
             const result = await res.json();
+            saveThirdPartyResponse("applicant_aadhaar_initiate_response", result);
 
             if (result.success) {
               setAadhaarSessionId(result.ekyc_session_id);
@@ -194,9 +202,10 @@ const verifyField = async (type, value = "") => {
           });
 
           const result = await res.json();
+          saveThirdPartyResponse("applicant_aadhaar_response", result);
 
           if (result.success) {
-            setApplicationId(result.applicationId); 
+            setApplicationId(result.applicationId);
             setVerifyStatus(prev => ({
               ...prev,
               [statusKey]: "verified"
@@ -227,6 +236,7 @@ const verifyField = async (type, value = "") => {
       });
 
       const result = await res.json();
+      saveThirdPartyResponse("applicant_pan_response", result);
 
       // `pan_status` is the authoritative signal for PAN validity. `result.success` also
       // reflects unrelated downstream steps (CB pre-hit, DB insert) bundled into the same
@@ -282,6 +292,7 @@ const verifyField = async (type, value = "") => {
 
           const preResult = await preRes.json();
           console.log("processWebCbHits response:", preResult);
+          saveThirdPartyResponse("applicant_cibil_prehit_response", preResult);
 
           if (preResult.status !== "accepted") {  // ✅ fixed
             setVerifyStatus(prev => ({
@@ -303,6 +314,7 @@ const verifyField = async (type, value = "") => {
 
           const result = await res.json();
           console.log("checkCbStatusForSweb response:", result);
+          saveThirdPartyResponse("applicant_cibil_response", result);
 
           if (result?.success === true) {
              if (result?.kyc_id) localStorage.setItem("applicant_kyc_id", result.kyc_id);
@@ -344,6 +356,7 @@ const verifyField = async (type, value = "") => {
   });
 
   const coResult = await coRes.json();
+  saveThirdPartyResponse("co_applicant_pan_response", coResult);
 
   // `pan_status` is the authoritative signal for PAN validity, same as the main
   // applicant's PAN case — `success` also reflects unrelated post-processing
@@ -400,6 +413,7 @@ const verifyField = async (type, value = "") => {
               });
 
               const result = await res.json();
+              saveThirdPartyResponse("co_applicant_aadhaar_initiate_response", result);
 
               if (result.success) {
 
@@ -487,8 +501,7 @@ const verifyField = async (type, value = "") => {
 
         const preResult = await preRes.json();
         console.log("Co processWebCbHits response:", preResult);
-
-       
+        saveThirdPartyResponse("co_applicant_cibil_prehit_response", preResult);
 
          if (preResult.status !== "accepted") {  // ✅ fixed
             setVerifyStatus(prev => ({
@@ -508,6 +521,7 @@ const verifyField = async (type, value = "") => {
 
         const result = await res.json();
         console.log("Co checkCbStatusForSweb response:", result);
+        saveThirdPartyResponse("co_applicant_cibil_response", result);
 
         if (result?.success === true) {
          
@@ -580,6 +594,7 @@ const checkCoAadhaarStatus = async () => {
   });
 
   const result = await res.json();
+  saveThirdPartyResponse("co_applicant_aadhaar_response", result);
 
   if (result.success || result.ekycStatus === "SUCCESS") {
 
@@ -797,7 +812,11 @@ const saveStage1 = async () => {
       co_applicant_cibil_score: verifyStatus.co_applicant_cibil_score || null,  // ← from verifyStatus
 
       consent_accepted:         1,
-      dealer_id:                customerId              // ← always useful to send
+      dealer_id:                customerId,             // ← always useful to send
+
+      // Raw third-party responses (Aadhaar/PAN/CB hit) for applicant + co-applicant,
+      // for audit/record on the backend.
+      third_party_responses:    thirdPartyResponses,
     };
 
     const res = await fetch(`${API.CUSTOMERSTAGE_FIRST}`, {

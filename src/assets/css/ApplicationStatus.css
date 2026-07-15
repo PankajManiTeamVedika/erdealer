@@ -1,0 +1,524 @@
+/* ApplicationStatus.css
+   Scoped entirely under .app-status-page so nothing here can collide with
+   (or be clobbered by) the many other pages sharing style.css. */
+
+.app-status-page {
+  min-height: 100vh;
+  background: #f4f6fb;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  padding: 1.75rem;
+}
+
+.app-status-page * {
+  box-sizing: border-box;
+}
+
+.app-status-page .as-container {
+  max-width: 1180px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* ---------- Header ---------- */
+.app-status-page .as-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+  border-radius: 20px;
+  padding: 1.5rem 2rem;
+  color: white;
+  box-shadow: 0 10px 30px rgba(30, 60, 114, 0.25);
+}
+
+.app-status-page .as-header .as-eyebrow {
+  margin: 0 0 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.app-status-page .as-header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.app-status-page .as-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.app-status-page .as-app-id {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.45rem 0.9rem;
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.15);
+  letter-spacing: 0.3px;
+}
+
+.app-status-page .as-profile-btn {
+  background: white;
+  color: #1e3c72;
+  border: none;
+  padding: 0.55rem 1.2rem;
+  border-radius: 30px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.app-status-page .as-profile-btn:hover {
+  transform: translateY(-1px);
+}
+
+/* ---------- Summary cards ---------- */
+.app-status-page .as-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.1rem;
+}
+
+.app-status-page .as-summary-card {
+  background: white;
+  border-radius: 16px;
+  padding: 1.25rem 1.4rem;
+  border: 1px solid #eef1f8;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+}
+
+.app-status-page .as-summary-card p {
+  margin: 0 0 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.app-status-page .as-summary-card h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.app-status-page .as-summary-card span {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.app-status-page .as-orange-text { color: #d97706; }
+.app-status-page .as-green-text { color: #15803d; }
+
+/* ---------- Query alert ---------- */
+.app-status-page .as-query-alert {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-left: 5px solid #f59e0b;
+  border-radius: 18px;
+  padding: 1.25rem 1.5rem;
+  flex-wrap: wrap;
+}
+
+.app-status-page .as-alert-icon {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #f59e0b;
+  color: white;
+  font-size: 1.4rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-status-page .as-alert-content {
+  flex: 1;
+  min-width: 240px;
+}
+
+.app-status-page .as-alert-top {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+}
+
+.app-status-page .as-alert-top span {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #b45309;
+}
+
+.app-status-page .as-alert-top small {
+  font-size: 0.7rem;
+  color: #92400e;
+  background: #ffedd5;
+  padding: 0.15rem 0.55rem;
+  border-radius: 20px;
+}
+
+.app-status-page .as-alert-content h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.app-status-page .as-alert-content p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #57534e;
+  line-height: 1.6;
+}
+
+.app-status-page .as-primary-btn {
+  background: linear-gradient(135deg, #1e3c72, #2a5298);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 30px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.app-status-page .as-primary-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(30, 60, 114, 0.3);
+}
+
+/* ---------- Section title (shared by journey + glass cards) ---------- */
+.app-status-page .as-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.2rem;
+}
+
+.app-status-page .as-section-title h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.app-status-page .as-section-title span {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 0.25rem 0.7rem;
+  border-radius: 20px;
+}
+
+/* ---------- Journey timeline ---------- */
+.app-status-page .as-journey-card {
+  background: white;
+  border-radius: 18px;
+  padding: 1.5rem 1.75rem;
+  border: 1px solid #eef1f8;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+}
+
+.app-status-page .as-journey {
+  display: flex;
+  align-items: flex-start;
+}
+
+.app-status-page .as-step {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0 0.4rem;
+}
+
+.app-status-page .as-step-circle {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 0.6rem;
+  z-index: 1;
+  border: 2px solid transparent;
+}
+
+.app-status-page .as-step-circle.done {
+  background: #10b981;
+  color: white;
+}
+
+.app-status-page .as-step-circle.active {
+  background: white;
+  color: #1e3c72;
+  border-color: #1e3c72;
+  box-shadow: 0 0 0 4px rgba(30, 60, 114, 0.12);
+}
+
+.app-status-page .as-step-circle.pending {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border-color: #e2e8f0;
+}
+
+.app-status-page .as-step-line {
+  position: absolute;
+  top: 19px;
+  left: 50%;
+  width: 100%;
+  height: 2px;
+  background: #e2e8f0;
+  z-index: 0;
+}
+
+.app-status-page .as-step-line.done {
+  background: #10b981;
+}
+
+.app-status-page .as-step h4 {
+  margin: 0 0 0.2rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.app-status-page .as-step p {
+  margin: 0;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+/* ---------- Two-column main grid ---------- */
+.app-status-page .as-main-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.app-status-page .as-card {
+  background: white;
+  border-radius: 18px;
+  padding: 1.5rem 1.75rem;
+  border: 1px solid #eef1f8;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+}
+
+.app-status-page .as-doc-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-status-page .as-doc-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.app-status-page .as-doc-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.app-status-page .as-doc-item-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.app-status-page .as-doc-item-left p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #334155;
+  font-weight: 500;
+}
+
+.app-status-page .as-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.app-status-page .as-dot.success { background: #10b981; }
+.app-status-page .as-dot.warning { background: #f59e0b; }
+
+.app-status-page .as-doc-value {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.2rem 0.65rem;
+  border-radius: 20px;
+}
+
+.app-status-page .as-doc-value.success {
+  color: #15803d;
+  background: #dcfce7;
+}
+
+.app-status-page .as-doc-value.warning {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+/* ---------- Activity log ---------- */
+.app-status-page .as-activity-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-status-page .as-activity-row {
+  display: flex;
+  gap: 0.85rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.app-status-page .as-activity-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.app-status-page .as-activity-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-top: 0.35rem;
+  flex-shrink: 0;
+}
+
+.app-status-page .as-activity-dot.success { background: #10b981; }
+.app-status-page .as-activity-dot.warning { background: #f59e0b; }
+.app-status-page .as-activity-dot.info { background: #3b82f6; }
+.app-status-page .as-activity-dot.neutral { background: #94a3b8; }
+
+.app-status-page .as-activity-row h4 {
+  margin: 0 0 0.2rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.app-status-page .as-activity-row p {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+/* ---------- Support footer ---------- */
+.app-status-page .as-support-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  background: white;
+  border-radius: 18px;
+  padding: 1.25rem 1.75rem;
+  border: 1px solid #eef1f8;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+}
+
+.app-status-page .as-support-card h3 {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.app-status-page .as-support-card p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.app-status-page .as-support-card button {
+  background: #0f172a;
+  color: white;
+  border: none;
+  padding: 0.65rem 1.4rem;
+  border-radius: 30px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1024px) {
+  .app-status-page .as-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .app-status-page .as-main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-status-page {
+    padding: 1rem;
+  }
+  .app-status-page .as-summary-grid {
+    grid-template-columns: 1fr;
+  }
+  .app-status-page .as-journey {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1.1rem;
+  }
+  .app-status-page .as-step {
+    flex-direction: row;
+    text-align: left;
+    gap: 0.75rem;
+  }
+  .app-status-page .as-step-circle {
+    margin-bottom: 0;
+  }
+  .app-status-page .as-step-line {
+    display: none;
+  }
+  .app-status-page .as-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .app-status-page .as-query-alert {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .app-status-page .as-primary-btn {
+    width: 100%;
+  }
+  .app-status-page .as-support-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .app-status-page .as-support-card button {
+    width: 100%;
+  }
+}

@@ -12,9 +12,15 @@ const DealerDetails = () => {
   const [dealer, setDealer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionInProgress, setActionInProgress] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
+  const [imageLoading, setImageLoading] = useState(false);
+  const [checkedDocs, setCheckedDocs] = useState({});
+  const [cancelDocIdx, setCancelDocIdx] = useState(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelledDocs, setCancelledDocs] = useState({});
 
   useEffect(() => {
-    const fetchDealer = async () => { 
+    const fetchDealer = async () => {
       try {
         setLoading(true);
         const res = await fetch(`${API.DEALERS}/${dealerId}`);
@@ -36,53 +42,53 @@ const DealerDetails = () => {
   }, [dealerId]);
 
   // inside DealerDetails.jsx component
-    const handleApprove = async () => {
+  const handleApprove = async () => {
     if (!dealer) return;
     setActionInProgress(true);
     try {
-        const res = await fetch(`${API.DEALERS}/${dealer.id}/status`, {
+      const res = await fetch(`${API.DEALERS}/${dealer.id}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'ACTIVE' })
-        });
-        const data = await res.json();
-        if (data.status) {
+      });
+      const data = await res.json();
+      if (data.status) {
         alert(`Dealer approved successfully`);
         setDealer(prev => ({ ...prev, status: 'ACTIVE' }));
-        } else {
+      } else {
         alert(data.message || "Approval failed");
-        }
+      }
     } catch (err) {
-        console.error(err);
-        alert("Server error");
+      console.error(err);
+      alert("Server error");
     } finally {
-        setActionInProgress(false);
+      setActionInProgress(false);
     }
-    };
+  };
 
-    const handleReject = async () => {
+  const handleReject = async () => {
     if (!dealer) return;
     setActionInProgress(true);
     try {
-        const res = await fetch(`${API.DEALERS}/${dealer.id}/status`, {
+      const res = await fetch(`${API.DEALERS}/${dealer.id}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'REJECTED' })
-        });
-        const data = await res.json();
-        if (data.status) {
+      });
+      const data = await res.json();
+      if (data.status) {
         alert(`Dealer rejected successfully`);
         setDealer(prev => ({ ...prev, status: 'REJECTED' }));
-        } else {
+      } else {
         alert(data.message || "Rejection failed");
-        }
+      }
     } catch (err) {
-        console.error(err);
-        alert("Server error");
+      console.error(err);
+      alert("Server error");
     } finally {
-        setActionInProgress(false);
+      setActionInProgress(false);
     }
-    };
+  };
 
   const handleBlock = () => {
     setActionInProgress(true);
@@ -109,6 +115,27 @@ const DealerDetails = () => {
     if (!url) return "#";
     if (url.startsWith("http")) return url;
     return `${baseURL}/${url}`;
+  };
+
+  const toggleDocChecked = (idx) => {
+    setCheckedDocs((prev) => ({ ...prev, [idx]: !prev[idx] }));
+  };
+
+  const openCancelModal = (idx) => {
+    setCancelReason(cancelledDocs[idx]?.reason || "");
+    setCancelDocIdx(idx);
+  };
+
+  const closeCancelModal = () => {
+    setCancelDocIdx(null);
+    setCancelReason("");
+  };
+
+  const confirmCancelDoc = () => {
+    if (!cancelReason.trim()) return;
+    setCancelledDocs((prev) => ({ ...prev, [cancelDocIdx]: { reason: cancelReason.trim() } }));
+    setCheckedDocs((prev) => ({ ...prev, [cancelDocIdx]: false }));
+    closeCancelModal();
   };
 
   return (
@@ -146,7 +173,7 @@ const DealerDetails = () => {
         {/* LEFT COLUMN – Form Data */}
         <div className="details-left">
           {/* Step 1 - Location */}
-          <div className="info-card">
+          <div className="info-card compact-card">
             <div className="step-header"><span className="step-num">1</span><h3>Dealer Location Details</h3></div>
             <div className="info-row"><span className="label">State:</span><span>{dealer.state || "—"}</span></div>
             <div className="info-row"><span className="label">District:</span><span>{dealer.district || "—"}</span></div>
@@ -155,7 +182,7 @@ const DealerDetails = () => {
           </div>
 
           {/* Step 2 - Firm & Owner */}
-          <div className="info-card">
+          <div className="info-card compact-card">
             <div className="step-header"><span className="step-num">2</span><h3>Firm & Owner Details</h3></div>
             <div className="info-row"><span className="label">Legal Name:</span><span>{dealer.legal_name || dealer.showroom_name || "—"}</span></div>
             <div className="info-row"><span className="label">Entity Type:</span><span>{dealer.firm_type || "—"}</span></div>
@@ -174,29 +201,65 @@ const DealerDetails = () => {
           <div className="info-card">
             <div className="step-header"><span className="step-num">3</span><h3>Document Upload Checklist</h3></div>
             {dealer.documents && dealer.documents.length > 0 ? (
-              <div className="doc-list">
+              <>
+                <div className="doc-verify-summary">
+                  {Object.values(checkedDocs).filter(Boolean).length} of {dealer.documents.length} documents verified
+                </div>
+                <div className="doc-list">
                 {dealer.documents.map((doc, idx) => (
-                  <div key={idx} className="doc-item">
-                    <span>{doc.document_type}:</span>
-                    {doc.document_url?.endsWith(".pdf") ? (
-                      <a href={getFullUrl(doc.document_url)} target="_blank" rel="noopener noreferrer" className="doc-link">
-                        📄 View PDF
-                      </a>
-                    ) : (
-                      <a href={getFullUrl(doc.document_url)} target="_blank" rel="noopener noreferrer" className="image-preview-btn">
-                        🖼️ View Image
-                      </a>
-                    )}
+                  <div key={idx} className={`doc-item ${!checkedDocs[idx] ? "doc-unverified" : ""}`}>
+                    <label className={`check-line doc-check ${cancelledDocs[idx] ? "doc-check-disabled" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={!!checkedDocs[idx]}
+                        onChange={() => toggleDocChecked(idx)}
+                        disabled={!!cancelledDocs[idx]}
+                      />
+                      <span>{doc.document_type}:</span>
+                    </label>
+                    <div className="doc-item-right">
+                      {cancelledDocs[idx] ? (
+                        <span className="cancelled-badge" title={cancelledDocs[idx].reason}>Cancelled</span>
+                      ) : (
+                        !checkedDocs[idx] && <span className="not-verified-badge">Not Verified</span>
+                      )}
+                      {doc.document_url?.endsWith(".pdf") ? (
+                        <a href={getFullUrl(doc.document_url)} target="_blank" rel="noopener noreferrer" className="doc-link">
+                          📄 View PDF
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          className="image-preview-btn"
+                          onClick={() => {
+                            setImageLoading(true);
+                            setPreviewImage(getFullUrl(doc.document_url));
+                          }}
+                        >
+                          🖼️ View Image
+                        </button>
+                      )}
+                      {!checkedDocs[idx] && (
+                        <button
+                          type="button"
+                          className="doc-cancel-btn"
+                          onClick={() => openCancelModal(idx)}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
-              </div>
+                </div>
+              </>
             ) : (
               <p className="no-docs">No documents uploaded</p>
             )}
           </div>
 
           {/* Step 4 - Bank */}
-          <div className="info-card">
+          <div className="info-card compact-card">
             <div className="step-header"><span className="step-num">4</span><h3>Bank Verification</h3></div>
             <div className="info-row"><span className="label">Account Number:</span><span>{dealer.bank_account || "—"}</span></div>
             <div className="info-row"><span className="label">IFSC Code:</span><span>{dealer.ifsc_code || "—"}</span></div>
@@ -231,39 +294,83 @@ const DealerDetails = () => {
 
           {/* Action Buttons – Conditional */}
           <div className="action-buttons">
-            <button className="back-btn" onClick={() => navigate("/ho-dashboard")}>
-                ← Back to Dashboard
+            <button className="back-btn" onClick={() => navigate(`/application-status`)}>
+              ← Assign to Dealer
             </button>
 
             {dealer.status.toLowerCase() === 'pending' ? (
-                <div className="approve-reject">
+              <div className="approve-reject">
                 <button
-                    className="reject-btn"
-                    onClick={handleReject}
-                    disabled={actionInProgress}
+                  className="reject-btn"
+                  onClick={handleReject}
+                  disabled={actionInProgress}
                 >
-                    Reject
+                  Reject
                 </button>
                 <button
-                    className="approve-btn"
-                    onClick={handleApprove}
-                    disabled={actionInProgress}
+                  className="approve-btn"
+                  onClick={handleApprove}
+                  disabled={actionInProgress}
                 >
-                    Approve
+                  Approve
                 </button>
-                </div>
+              </div>
             ) : (
-                <button
+              <button
                 className="block-btn"
                 onClick={() => alert("Block action placeholder")}
                 disabled={actionInProgress}
-                >
+              >
                 Block Dealer
-                </button>
+              </button>
             )}
-            </div>
+          </div>
         </div>
       </div>
+
+      {previewImage && (
+        <div className="modal-overlay" onClick={() => setPreviewImage(null)}>
+          <div className="modal-content image-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="close-modal" onClick={() => setPreviewImage(null)}>✕</button>
+            {imageLoading && <div className="image-loader"></div>}
+            <img
+              src={previewImage}
+              alt="Document preview"
+              style={{ display: imageLoading ? "none" : "block" }}
+              onLoad={() => setImageLoading(false)}
+              onError={() => setImageLoading(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {cancelDocIdx !== null && (
+        <div className="modal-overlay" onClick={closeCancelModal}>
+          <div className="modal-content cancel-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="close-modal" onClick={closeCancelModal}>✕</button>
+            <h3>Cancel Document</h3>
+            <p className="cancel-doc-name">{dealer.documents[cancelDocIdx]?.document_type}</p>
+            <textarea
+              className="cancel-reason-input"
+              placeholder="Enter reason for cancellation..."
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              rows={4}
+              autoFocus
+            />
+            <div className="modal-buttons">
+              <button className="modal-cancel" onClick={closeCancelModal}>Close</button>
+              <button
+                className="modal-submit"
+                onClick={confirmCancelDoc}
+                disabled={!cancelReason.trim()}
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

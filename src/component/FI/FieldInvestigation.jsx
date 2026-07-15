@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import "../../assets/css/FieldInvestigation.css";
 import logo from "../../assets/image/logo.png";
 import { useNavigate } from "react-router-dom";
@@ -11,10 +11,19 @@ import { API } from "../api/apiRoutes";
 // ---- Enum/code mappings guessed from your dropdown copy ----
 // ASSUMPTION: confirm these numeric codes against the actual backend enum.
 const ACCOMMODATION_TYPE_MAP = {
-  "Pucca (Owned > 3 yrs)": 1,
-  "Pucca (Owned < 3 yrs)": 2,
-  "Kutcha": 3,
-  "Rented": 4,
+  "Owned": 1,
+  "Rented": 2,
+  "Relative": 3,
+  "Company Provided": 4,
+  "Government Quarter": 5,
+};
+
+// ASSUMPTION: confirm these numeric codes against the actual backend enum.
+const CONSTRUCTION_TYPE_MAP = {
+  "Pucca House": 1,
+  "Semi-Pucca House": 2,
+  "Kutcha-cum-Pucca / Mixed House": 3,
+  "Kachha House": 4,
 };
 
 const YEAR_KNOWN_MAP = {
@@ -52,7 +61,8 @@ const FieldInvestigation = () => {
   const navigate = useNavigate();
 
   // Residence & Household State
-  const [houseType, setHouseType] = useState("Pucca (Owned > 3 yrs)");
+  const [houseType, setHouseType] = useState("Owned");
+  const [houseConstructionType, setHouseConstructionType] = useState("Pucca House");
   const [addressDuration, setAddressDuration] = useState("> 3 years");
   const [familyMembers, setFamilyMembers] = useState(4);
   const [dependents, setDependents] = useState(2);
@@ -95,8 +105,18 @@ const FieldInvestigation = () => {
   const [smartphoneMobNo, setSmartphoneMobNo] = useState("");
 
   // Video PD State
-  const [videoLink, setVideoLink] = useState("");
   const [transcriptionFile, setTranscriptionFile] = useState(null);
+
+  // Think360 Live Video PD State — live camera + recording + geo capture
+  const [isLiveVideoPD, setIsLiveVideoPD] = useState(false);
+  const [recordedVideoUrl, setRecordedVideoUrl] = useState(null);
+  const [pdLatitude, setPdLatitude] = useState(null);
+  const [pdLongitude, setPdLongitude] = useState(null);
+  const [locationError, setLocationError] = useState("");
+  const pdVideoRef = useRef(null);
+  const pdStreamRef = useRef(null);
+  const pdRecorderRef = useRef(null);
+  const pdChunksRef = useRef([]);
 
   // LIVE GAR Score State (Auto-calculated from backend)
   const [garData] = useState({
@@ -124,14 +144,61 @@ const FieldInvestigation = () => {
     }
   };
 
-  // Handle video link
-  const handleVideoLink = () => {
-    if (!videoLink) {
-      setError("Please enter a valid video link");
+  // Think360 Live Video PD — capture GPS coordinates for the live session
+  const captureLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is not supported on this device/browser");
       return;
     }
-    setSuccess("Video PD link saved!");
-    setTimeout(() => setSuccess(""), 3000);
+    setLocationError("");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setPdLatitude(position.coords.latitude);
+        setPdLongitude(position.coords.longitude);
+      },
+      (err) => setLocationError(err.message || "Unable to fetch location"),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const startLiveVideoPD = async () => {
+    try {
+      setRecordedVideoUrl(null);
+      pdChunksRef.current = [];
+
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      pdStreamRef.current = stream;
+
+      if (pdVideoRef.current) {
+        pdVideoRef.current.srcObject = stream;
+        pdVideoRef.current.muted = true;
+        pdVideoRef.current.play();
+      }
+
+      const recorder = new MediaRecorder(stream);
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) pdChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(pdChunksRef.current, { type: "video/webm" });
+        setRecordedVideoUrl(URL.createObjectURL(blob));
+      };
+      recorder.start();
+      pdRecorderRef.current = recorder;
+
+      setIsLiveVideoPD(true);
+      captureLocation();
+    } catch (err) {
+      console.error(err);
+      setError("Camera/microphone not available for live Video PD");
+    }
+  };
+
+  const stopLiveVideoPD = () => {
+    pdRecorderRef.current?.stop();
+    pdStreamRef.current?.getTracks().forEach((track) => track.stop());
+    pdStreamRef.current = null;
+    setIsLiveVideoPD(false);
   };
 
   // Build the /fi/save payload from form state
@@ -153,6 +220,7 @@ const FieldInvestigation = () => {
       model_name: modelName,
       er_totat_price: parseInt(erTotalPrice, 10) || 0,
       accomodation_type: ACCOMMODATION_TYPE_MAP[houseType] ?? null,
+      house_construction_type: CONSTRUCTION_TYPE_MAP[houseConstructionType] ?? null,
       make_house: parseInt(makeHouse, 10) || null,
       year_of_known: YEAR_KNOWN_MAP[addressDuration] ?? null,
       total_family_member: parseInt(familyMembers, 10) || 0,
@@ -177,6 +245,8 @@ const FieldInvestigation = () => {
       amount: 0,
       family_loan_obligation_monthly: 0,
       migrant_member: 0,
+      pd_latitude: pdLatitude,
+      pd_longitude: pdLongitude,
     };
   };
 
@@ -320,10 +390,25 @@ const FieldInvestigation = () => {
                       onChange={(e) => setHouseType(e.target.value)}
                       className="form-select"
                     >
-                      <option>Pucca (Owned &gt; 3 yrs)</option>
-                      <option>Pucca (Owned {"<"} 3 yrs)</option>
-                      <option>Kutcha</option>
+                      <option>Owned</option>
                       <option>Rented</option>
+                      <option>Relative</option>
+                      <option>Company Provided</option>
+                      <option>Government Quarter</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>House Construction Type</label>
+                    <select
+                      value={houseConstructionType}
+                      onChange={(e) => setHouseConstructionType(e.target.value)}
+                      className="form-select"
+                    >
+                      <option>Pucca House</option>
+                      <option>Semi-Pucca House</option>
+                      <option>Kutcha-cum-Pucca / Mixed House</option>
+                      <option>Kachha House</option>
                     </select>
                   </div>
 
@@ -709,27 +794,52 @@ const FieldInvestigation = () => {
             >
               <div className="header-left">
                 <span className="collapse-icon">{activeSection === "video" ? "▼" : "▶"}</span>
-                <h3>Video PD & transcription</h3>
+                <h3>360 Video PD & transcription</h3>
               </div>
             </div>
 
             {activeSection === "video" && (
               <div className="collapse-body">
                 <div className="form-group">
-                  <label>Video PD / G-Meet link</label>
-                  <div className="input-group">
-                    <input
-                      type="text"
-                      value={videoLink}
-                      onChange={(e) => setVideoLink(e.target.value)}
-                      className="form-input"
-                      placeholder="https://meet.google.com/..."
+                  <label>Think360 Live Video PD</label>
+
+                  <div className="pd-video-preview">
+                    <video
+                      ref={pdVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      style={{ display: isLiveVideoPD ? "block" : "none" }}
                     />
-                    <button className="btn-primary" onClick={handleVideoLink}>
-                      Save Link
-                    </button>
+                    {!isLiveVideoPD && recordedVideoUrl && (
+                      <video src={recordedVideoUrl} controls />
+                    )}
+                    {!isLiveVideoPD && !recordedVideoUrl && (
+                      <div className="pd-video-placeholder">No live session recorded yet</div>
+                    )}
                   </div>
-                  <small className="field-note">Geo + time stamped</small>
+
+                  <div className="input-group">
+                    {!isLiveVideoPD ? (
+                      <button type="button" className="btn-primary" onClick={startLiveVideoPD}>
+                        ● Start Live Video PD
+                      </button>
+                    ) : (
+                      <button type="button" className="btn-primary pd-stop-btn" onClick={stopLiveVideoPD}>
+                        ■ Stop & Save
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="pd-location-readout">
+                    {pdLatitude != null && pdLongitude != null ? (
+                      <span>📍 Lat: {pdLatitude.toFixed(6)}, Long: {pdLongitude.toFixed(6)}</span>
+                    ) : (
+                      <span className="pd-location-pending">Location not captured yet</span>
+                    )}
+                    {locationError && <span className="pd-location-error"> — {locationError}</span>}
+                  </div>
+                  <small className="field-note">Geo-tagged at the moment the live session starts</small>
                 </div>
 
                 <div className="form-group">

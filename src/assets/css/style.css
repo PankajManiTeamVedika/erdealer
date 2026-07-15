@@ -530,6 +530,27 @@ hr {
   line-height: 1.7;
 }
 
+.dealer-credentials-box {
+  margin-top: 18px;
+  padding: 14px 16px;
+  background: #f1f5f9;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.dealer-credentials-box p {
+  margin: 4px 0;
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.dealer-credentials-box small {
+  display: block;
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 12px;
+}
+
 .success-btn {
   width: 100%;
   height: 50px;
@@ -3284,6 +3305,18 @@ body {
 
 .input-verify-btn.verified {
   background: #16a34a;
+}
+
+.locked-input {
+  background: #f1f5f9;
+  color: #475569;
+  cursor: not-allowed;
+}
+
+.bank-beneficiary-name {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #15803d;
 }
 
 .captcha-refresh-btn {

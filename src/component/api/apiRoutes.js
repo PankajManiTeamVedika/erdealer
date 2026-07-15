@@ -7,11 +7,14 @@ const BASE_URL_STATE = "https://teamvedika.com/APILocation/location_api.php";
 const BASE_URL_CIBIL = "https://uat.teamvedika.com/checkCbStatusForSweb";
 // const BASE_URL_CIBIL = "https://swatahlos.teamvedika.com/checkCbStatusForSweb";  Production
 
+// TODO: paste your Google Maps Geocoding API key here.
+export const GOOGLE_MAPS_API_KEY = "";
+
 export const API = {
   LOGIN: `${BASE_URL}/login`,
   OTP_VERIFY: `${BASE_URL}/verify-otp`,
   MANUFACTURERS: `${BASE_URL}/manufacturers`,
-  DEALER_ONBOARDING: `${BASE_URL}/dealer-onboarding`,
+  DEALER_ONBOARDING: `${BASE_URL}/dealers`,
   DEALERS: `${BASE_URL}/dealers`,
   VERIFY_PAN: `${BASE_URL}/verify/pan`,
    MANUFACTURERS_DEALER: `${BASE_URL}/dealers/manufacturers`,
@@ -27,6 +30,10 @@ export const API = {
    // when called from an https-served app until it's proxied or fronted by an HTTPS domain.
    SANCTION_SAVE_API: `https://uat.teamvedika.com/api/er-loan/save-sanction`,
    INITIATE_MANDATE_API: `https://uat.teamvedika.com/api/er-loan/initiate-mandate`,
+   BANK_PENNY_DROP_API: `https://vfpl.teamvedika.com/dealer-api/public/api/bank-account/verify`,
+   BRANCH_LAT_LNG_API: `https://uat.teamvedika.com/api/branch/lat-lng`,
+   APPLICATION_ADDRESS_API: `https://uat.teamvedika.com/api/application/address`,
+   GEOCODE_API: `https://maps.googleapis.com/maps/api/geocode/json`,
 
   //  Customer Onboarding ThirdParty
     generateOtp: `${BASE_URL_CUSTOMER}/auth/otp/generate`,

@@ -9,7 +9,6 @@ import ApplicationStatus from "./component/ApplicationStatus";
 import ApplicantVerification from "./component/CustomerOnboarding/ApplicantVerification";
 import DocumentCollection from "./component/CustomerOnboarding/DocumentCollection";
 import OfferSummary from "./component/CustomerOnboarding/OfferSummary";
-import FieldInvestigation from "./component/FI/FieldInvestigation";
 import SanctionReview from "./component/FI/SanctionReview";
 import VehicleDelivery from "./component/VehicleDelivery";
 import HoDashboard from "./component/HoDashboard";
@@ -31,7 +30,6 @@ function App() {
       <Route path="/applicant-verification" element={<ApplicantVerification />} />
       <Route path="/document-collection" element={<DocumentCollection />} />
       <Route path="/offer-summary" element={<OfferSummary />} />
-      <Route path="/field-investigation" element={<FieldInvestigation />} />
       <Route path="/sanction-review" element={<SanctionReview />} />
       <Route path="/vehicle-delivery" element={<VehicleDelivery />} />
       <Route path="/dealer-details/:dealerId" element={<DealerDetails />} />

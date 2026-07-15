@@ -51,8 +51,13 @@ const OtpVerify = () => {
   // Success Alert
   alert("OTP verified successfully");
 
-  // Redirect to Dashboard
-  navigate("/dealer-dashboard");
+  // Redirect based on dealer status saved at login
+  const dealerStatus = (localStorage.getItem("dealer_status") || "").toUpperCase();
+  if (dealerStatus === "PENDING") {
+    navigate("/application-status");
+  } else {
+    navigate("/dealer-dashboard");
+  }
 };
 
   const handleResendOtp = () => {

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import "../assets/css/style.css";
 import logo from "../assets/image/logo.png";
 import { API } from "../component/api/apiRoutes";
@@ -44,6 +44,31 @@ const normalizeName = (name = "") =>
     .replace(/\s+/g, " ")
     .trim();
 
+const levenshteinDistance = (a, b) => {
+  const dp = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i++) dp[i][0] = i;
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  return dp[a.length][b.length];
+};
+
+// 1 = identical, 0 = completely different.
+const nameSimilarity = (a, b) => {
+  const maxLen = Math.max(a.length, b.length);
+  if (maxLen === 0) return 1;
+  return 1 - levenshteinDistance(a, b) / maxLen;
+};
+
+// Bank/PAN/GST records often transliterate Indian names slightly differently
+// (e.g. "TARKESHWER" vs "TARKESHWAR"), so allow near-matches, not just exact/substring ones.
+const NAME_MATCH_THRESHOLD = 0.85;
+
 const namesMatch = (candidate, expectedNames = []) => {
   const normalizedCandidate = normalizeName(candidate);
   if (!normalizedCandidate) return false;
@@ -53,13 +78,15 @@ const namesMatch = (candidate, expectedNames = []) => {
     return (
       normalizedCandidate === normalizedExpected ||
       normalizedCandidate.includes(normalizedExpected) ||
-      normalizedExpected.includes(normalizedCandidate)
+      normalizedExpected.includes(normalizedCandidate) ||
+      nameSimilarity(normalizedCandidate, normalizedExpected) >= NAME_MATCH_THRESHOLD
     );
   });
 };
 
 const DealerOnboardingForm = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const selectedManufacturers = location.state?.selectedManufacturers || [];
 
    const getValue = (item, key) => {
@@ -68,6 +95,7 @@ const DealerOnboardingForm = () => {
   };
 
   const [success, setSuccess] = useState(false);
+  const [dealerCredentials, setDealerCredentials] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
@@ -169,10 +197,34 @@ const DealerOnboardingForm = () => {
   // ----------------- Verification Function (PAN + Aadhaar integrated) -----------------
 const [loadingField, setLoadingField] = useState(null);
 const [aadhaarTransactionId, setAadhaarTransactionId] = useState(null);
+const [bankBeneficiaryName, setBankBeneficiaryName] = useState("");
+
+// Raw third-party API responses (PAN, GST, Aadhaar, penny-drop) kept alongside the
+// derived verifyStatus flags so the full response can be submitted for audit/record.
+const [verifyResponses, setVerifyResponses] = useState({});
+const saveVerifyResponse = (key, result) =>
+  setVerifyResponses(prev => ({ ...prev, [key]: result }));
+
+// Owner Name / Showroom Name feed the PAN, GST and Aadhaar name-match checks — once any of
+// those succeed against these values, lock the fields so they can't drift out of sync
+// with an already-verified document.
+const namesLocked = [
+  verifyStatus.firm_pan_verify_status,
+  verifyStatus.owner_pan_verify_status,
+  verifyStatus.gstin_verify_status,
+  verifyStatus.aadhaar_ekyc_status,
+].includes("verified");
 
 
 
 const verifyField = async (type, value = "") => {
+  // Owner Name / Showroom Name are the reference values every name-match check compares
+  // against, so nothing can verify until both are actually filled in.
+  if (!form.owner_name.trim() || !form.showroom_name.trim()) {
+    alert("Please fill Owner Name and Showroom Name as per GST before verifying ❌");
+    return;
+  }
+
   let payload = {}, statusKey = "", apiUrl = "";
 
   try {
@@ -182,6 +234,7 @@ const verifyField = async (type, value = "") => {
       case "pan": {
         const isOwnerPan = value === form.owner_pan;
         statusKey = isOwnerPan ? "owner_pan_verify_status" : "firm_pan_verify_status";
+        const responseKey = isOwnerPan ? "owner_pan_verify_response" : "firm_pan_verify_response";
         // Firm PAN is often the individual owner's PAN (proprietorship) but can also be
         // registered under the business/showroom name, so either counts as a match.
         const expectedNames = isOwnerPan
@@ -197,6 +250,7 @@ const verifyField = async (type, value = "") => {
           body: JSON.stringify(payload)
         });
         const result = await res.json();
+        saveVerifyResponse(responseKey, result);
 
         if (!(result.status && result.data?.status === "VALID")) {
           setVerifyStatus(prev => ({ ...prev, [statusKey]: "failed" }));
@@ -233,6 +287,7 @@ const verifyField = async (type, value = "") => {
             body: JSON.stringify(payload)
           });
           const result = await res.json();
+          saveVerifyResponse("aadhaar_ekyc_link_response", result);
 
           if(result.status && result.data?.model?.url){
             setVerifyStatus(prev => ({ ...prev, [statusKey]: "in_process" }));
@@ -244,7 +299,7 @@ const verifyField = async (type, value = "") => {
             alert("Failed to generate Aadhaar KYC link ❌");
           }
           return;
-        } else { 
+        } else {
           // Second click: hit details API
           const detailsUrl = `${API.DEALERS}/verify/aadhaar/details/${aadhaarTransactionId}`;
           const res = await fetch(detailsUrl, {
@@ -252,6 +307,7 @@ const verifyField = async (type, value = "") => {
             headers: { "Content-Type": "application/json" }
           });
           const result = await res.json();
+          saveVerifyResponse("aadhaar_ekyc_response", result);
 
           if(result.status && result.data?.model?.referenceId){
             setVerifyStatus(prev => ({ ...prev, [statusKey]: "verified" }));
@@ -297,6 +353,7 @@ const verifyField = async (type, value = "") => {
 
           const rawText = await res.text();
           const result = parseJsonLoose(rawText);
+          saveVerifyResponse("gstin_verify_response", result);
 
           const isVerified =
             result?.http_response_code === 200 &&
@@ -336,6 +393,52 @@ const verifyField = async (type, value = "") => {
         break;
       }
 
+      case "penny_drop": {
+        statusKey = "bank_penny_drop_verified";
+        apiUrl = API.BANK_PENNY_DROP_API;
+
+        const accountNumber = (form.bank_account || "").trim();
+        const ifsc = (form.ifsc_code || "").trim().toUpperCase();
+
+        if (!accountNumber || !ifsc) {
+          setVerifyStatus(prev => ({ ...prev, [statusKey]: "failed" }));
+          alert("Enter Account Number and IFSC Code before verifying penny drop ❌");
+          return;
+        }
+
+        payload = { account_number: accountNumber, ifsc };
+
+        const res = await fetch(apiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        saveVerifyResponse("bank_penny_drop_response", result);
+
+        // `success` is unreliable here — a confirmed penny-drop can still come back with
+        // success:false, so gate on data.verified instead (per real API response sample).
+        if (!result.data?.verified) {
+          setVerifyStatus(prev => ({ ...prev, [statusKey]: "failed" }));
+          alert(result.message || "Bank penny-drop verification failed ❌");
+          return;
+        }
+
+        const beneficiaryName = result.data.beneficiary_name_with_bank || "";
+        if (!namesMatch(beneficiaryName, [form.owner_name])) {
+          setVerifyStatus(prev => ({ ...prev, [statusKey]: "failed" }));
+          alert(
+            `Bank account holder name "${beneficiaryName}" does not match Owner Name ❌`
+          );
+          return;
+        }
+
+        setVerifyStatus(prev => ({ ...prev, [statusKey]: "verified" }));
+        setBankBeneficiaryName(beneficiaryName);
+        alert(`Bank penny-drop verified ✅ (${beneficiaryName})`);
+        return;
+      }
+
       case "mobile":
         payload = { mobile: form.owner_contact };
         statusKey = "mobile_otp_verified";
@@ -351,13 +454,14 @@ const verifyField = async (type, value = "") => {
       default: return;
     }
 
-    if(type !== "aadhaar" && type !== "gst" && type !== "pan"){
+    if(type !== "aadhaar" && type !== "gst" && type !== "pan" && type !== "penny_drop"){
       const res = await fetch(apiUrl, {
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify(payload)
       });
       const result = await res.json();
+      saveVerifyResponse(`${statusKey}_response`, result);
 
       setVerifyStatus(prev => ({ ...prev, [statusKey]: result.status ? "verified" : "failed" }));
       if(result.status) alert(`${type.toUpperCase()} verification successful ✅`);
@@ -396,7 +500,10 @@ const verifyField = async (type, value = "") => {
         kcyc:verifyStatus.aadhaar_ekyc_status==="verified",
         bank_verified:verifyStatus.bank_penny_drop_verified==="verified"
       }));
-      Object.keys(verifyStatus).forEach(key=>formData.append(key,verifyStatus[key]));
+      // Status columns store plain true/false; the raw third-party responses go under their
+      // own *_response keys (set above via saveVerifyResponse) so neither overwrites the other.
+      Object.keys(verifyStatus).forEach(key=>formData.append(key, verifyStatus[key]==="verified" ? "true" : "false"));
+      Object.keys(verifyResponses).forEach(key=>formData.append(key,JSON.stringify(verifyResponses[key])));
 
       const fileInputs=document.querySelectorAll("input[type=file]");
       fileInputs.forEach(input=>{
@@ -413,9 +520,14 @@ const verifyField = async (type, value = "") => {
         formData.append("document_types[]","Live Selfie From Showroom");
       }
 
-      const res = await fetch(API.DEALERS,{method:"POST",body:formData});
+      const res = await fetch(API.DEALER_ONBOARDING,{method:"POST",body:formData});
       const result = await res.json();
-      if(result.status){ setSuccess(true); } else { alert(result.message || "Dealer save failed"); }
+      if(result.status){
+        setDealerCredentials({ userId: result.user_id, password: result.password });
+        setSuccess(true);
+      } else {
+        alert(result.message || "Dealer save failed");
+      }
 
     } catch(err){ console.error(err); alert("Something went wrong while saving dealer"); }
     finally{ setSubmitting(false); }
@@ -566,6 +678,8 @@ const verifyField = async (type, value = "") => {
                   value={form.owner_name}
                   onChange={handleChange}
                   placeholder="Enter owner name"
+                  readOnly={namesLocked}
+                  className={namesLocked ? "locked-input" : ""}
                   required
                 />
               </div>
@@ -578,6 +692,8 @@ const verifyField = async (type, value = "") => {
                   value={form.showroom_name}
                   onChange={handleChange}
                   placeholder="Enter Showroom name"
+                  readOnly={namesLocked}
+                  className={namesLocked ? "locked-input" : ""}
                   required
                 />
               </div>
@@ -611,33 +727,6 @@ const verifyField = async (type, value = "") => {
               </div>
 
               <div className="form-group">
-                <label>Firm PAN</label>
-                <div className="verify-input-row">
-                  <input
-                    type="text"
-                    name="firm_pan"
-                    value={form.firm_pan}
-                    onChange={handleChange}
-                    placeholder="Enter firm PAN"
-                  />
-                  <button
-                      type="button"
-                      className={`input-verify-btn ${
-                        verifyStatus.firm_pan_verify_status === "verified" ? "verified" : ""
-                      }`}
-                      onClick={() => verifyField("pan", form.firm_pan)}
-                      disabled={loadingField === "pan"}
-                    >
-                      {loadingField === "pan"
-                        ? "Verifying..."
-                        : verifyStatus.firm_pan_verify_status === "verified"
-                          ? "Verified"
-                          : "Verify"}
-                    </button>
-                </div>
-              </div>
-
-              <div className="form-group">
                   <label>GST Number *</label>
                   <div className="verify-input-row">
                     <input
@@ -665,6 +754,33 @@ const verifyField = async (type, value = "") => {
                     </button>
                   </div>
                 </div>
+
+              <div className="form-group">
+                <label>Firm PAN</label>
+                <div className="verify-input-row">
+                  <input
+                    type="text"
+                    name="firm_pan"
+                    value={form.firm_pan}
+                    onChange={handleChange}
+                    placeholder="Enter firm PAN"
+                  />
+                  <button
+                      type="button"
+                      className={`input-verify-btn ${
+                        verifyStatus.firm_pan_verify_status === "verified" ? "verified" : ""
+                      }`}
+                      onClick={() => verifyField("pan", form.firm_pan)}
+                      disabled={loadingField === "pan"}
+                    >
+                      {loadingField === "pan"
+                        ? "Verifying..."
+                        : verifyStatus.firm_pan_verify_status === "verified"
+                          ? "Verified"
+                          : "Verify"}
+                    </button>
+                </div>
+              </div>
 
               <div className="form-group full-width">
                 <label>Showroom Address *</label>
@@ -1013,6 +1129,29 @@ const verifyField = async (type, value = "") => {
                   required
                 />
               </div>
+
+              <div className="form-group full-width">
+                <button
+                  type="button"
+                  className={`input-verify-btn ${
+                    verifyStatus.bank_penny_drop_verified === "verified" ? "verified" : ""
+                  }`}
+                  onClick={() => verifyField("penny_drop")}
+                  disabled={loadingField === "penny_drop"}
+                >
+                  {loadingField === "penny_drop"
+                    ? "Verifying..."
+                    : verifyStatus.bank_penny_drop_verified === "verified"
+                      ? "Penny Drop Verified"
+                      : "Verify Penny Drop"}
+                </button>
+
+                {verifyStatus.bank_penny_drop_verified === "verified" && (
+                  <p className="bank-beneficiary-name">
+                    Bank account holder name: <strong>{bankBeneficiaryName}</strong>
+                  </p>
+                )}
+              </div>
             </div>
           </section>
 
@@ -1087,7 +1226,14 @@ const verifyField = async (type, value = "") => {
         <div className="success-icon">✓</div>
         <h3>Application Received</h3>
         <p>Your dealer onboarding form has been successfully received. Please wait, your application is under processing.</p>
-        <button className="success-btn" onClick={()=>setSuccess(false)}>OK</button>
+        {dealerCredentials && (
+          <div className="dealer-credentials-box">
+            <p><strong>Username:</strong> {dealerCredentials.userId}</p>
+            <p><strong>Password:</strong> {dealerCredentials.password}</p>
+            <small>Please save these credentials — you'll need them to log in.</small>
+          </div>
+        )}
+        <button className="success-btn" onClick={()=>navigate("/")}>OK</button>
       </div></div>}
     </div>
   );

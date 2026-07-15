@@ -63,6 +63,7 @@ const Login = () => {
       if (result.status === true) {
           const user = result.data;
         localStorage.setItem("token", result.data.token);
+         localStorage.setItem("dealer_status", result.data.status);
         localStorage.setItem("user", JSON.stringify(result.data));
 
         if (user.role === "HO") {
@@ -226,6 +227,7 @@ const Login = () => {
         <div className="info">
           <span>ⓘ</span>
           <p>OTP will be sent after login</p>
+           <p>UAT Version 1.0</p>
         </div>
       </div>
 
