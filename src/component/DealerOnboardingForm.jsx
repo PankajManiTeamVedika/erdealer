@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "../assets/css/style.css";
-import logo from "../assets/image/logo.png";
+import logo from "../assets/image/logowhite.png";
 import { API } from "../component/api/apiRoutes";
 
 // Some backend endpoints (e.g. /verify/gst) append stray trailing content (like a literal
@@ -84,10 +84,69 @@ const namesMatch = (candidate, expectedNames = []) => {
   });
 };
 
+// Public sector, private sector, small finance, foreign and payments banks
+// operating in India — no bank-master API was provided, so this is a static list.
+const INDIAN_BANKS = [
+  "State Bank of India",
+  "Punjab National Bank",
+  "Bank of Baroda",
+  "Canara Bank",
+  "Union Bank of India",
+  "Bank of India",
+  "Indian Bank",
+  "Central Bank of India",
+  "Indian Overseas Bank",
+  "UCO Bank",
+  "Bank of Maharashtra",
+  "Punjab & Sind Bank",
+  "HDFC Bank",
+  "ICICI Bank",
+  "Axis Bank",
+  "Kotak Mahindra Bank",
+  "IndusInd Bank",
+  "Yes Bank",
+  "IDFC FIRST Bank",
+  "Federal Bank",
+  "South Indian Bank",
+  "Karnataka Bank",
+  "Karur Vysya Bank",
+  "City Union Bank",
+  "Tamilnad Mercantile Bank",
+  "DCB Bank",
+  "RBL Bank",
+  "Bandhan Bank",
+  "CSB Bank",
+  "Dhanlaxmi Bank",
+  "Jammu & Kashmir Bank",
+  "Nainital Bank",
+  "AU Small Finance Bank",
+  "Equitas Small Finance Bank",
+  "Ujjivan Small Finance Bank",
+  "ESAF Small Finance Bank",
+  "Suryoday Small Finance Bank",
+  "Utkarsh Small Finance Bank",
+  "Jana Small Finance Bank",
+  "North East Small Finance Bank",
+  "Shivalik Small Finance Bank",
+  "Unity Small Finance Bank",
+  "Airtel Payments Bank",
+  "India Post Payments Bank",
+  "Paytm Payments Bank",
+  "Fino Payments Bank",
+  "Jio Payments Bank",
+  "HSBC Bank",
+  "Standard Chartered Bank",
+  "Citibank",
+  "Deutsche Bank",
+  "Bank of America",
+].sort();
+
 const DealerOnboardingForm = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const selectedManufacturers = location.state?.selectedManufacturers || [];
+  const prefilledMobile = location.state?.mobile || "";
+  const prefilledMobileVerified = Boolean(location.state?.mobileVerified && prefilledMobile);
 
    const getValue = (item, key) => {
     if (typeof item === "string") return item;
@@ -95,11 +154,15 @@ const DealerOnboardingForm = () => {
   };
 
   const [success, setSuccess] = useState(false);
+  const [showOtherBank, setShowOtherBank] = useState(false);
   const [dealerCredentials, setDealerCredentials] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [mobileOtp, setMobileOtp] = useState("");
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [otpError, setOtpError] = useState("");
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -125,7 +188,7 @@ const DealerOnboardingForm = () => {
     showroom_address: "",
     owner_aadhaar: "",
     owner_pan: "",
-    owner_contact: "",
+    owner_contact: prefilledMobile,
     owner_email: "",
     bank_account: "",
     ifsc_code: "",
@@ -137,7 +200,7 @@ const DealerOnboardingForm = () => {
     owner_pan_verify_status: "pending",
     gstin_verify_status: "pending",
     aadhaar_ekyc_status: "pending",
-    mobile_otp_verified: "pending",
+    mobile_otp_verified: prefilledMobileVerified ? "verified" : "pending",
     bank_penny_drop_verified: "pending",
     cibil_commercial: "on_submit",
     blacklist_scrub: "on_submit",
@@ -192,7 +255,59 @@ const DealerOnboardingForm = () => {
     } catch (err) { console.error("Branch API Error:", err); setBranches([]); }
   };
 
-  const handleChange = (e) => { const { name, value } = e.target; setForm(prev => ({ ...prev, [name]: value })); };
+  // Per-field input sanitizers — strip disallowed characters as the user types,
+  // instead of only rejecting the whole form at submit time.
+  const onlyLetters = (v) => v.replace(/[^A-Za-z\s]/g, "");
+  const onlyDigits = (v) => v.replace(/[^0-9]/g, "");
+  const onlyAlphaNum = (v) => v.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  // Legal/business names on GST records legitimately include "M/S", numbers,
+  // and basic punctuation, so these get a looser filter than personal names.
+  const businessName = (v) => v.replace(/[^A-Za-z0-9\s.,&'/-]/g, "");
+
+  const FIELD_SANITIZERS = {
+    owner_name: onlyLetters,
+    showroom_name: businessName,
+    bank_name: businessName,
+    year_of_business: (v) => onlyDigits(v).slice(0, 4),
+    gst_number: (v) => onlyAlphaNum(v).slice(0, 15),
+    owner_aadhaar: (v) => onlyDigits(v).slice(0, 12),
+    owner_pan: (v) => onlyAlphaNum(v).slice(0, 10),
+    firm_pan: (v) => onlyAlphaNum(v).slice(0, 10),
+    owner_contact: (v) => onlyDigits(v).slice(0, 10),
+    bank_account: (v) => onlyDigits(v).slice(0, 18),
+    ifsc_code: (v) => onlyAlphaNum(v).slice(0, 11),
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    const sanitize = FIELD_SANITIZERS[name];
+    setForm(prev => ({ ...prev, [name]: sanitize ? sanitize(value) : value }));
+  };
+
+  // Dealer's own email must be personal/external — Vedika staff addresses aren't
+  // a valid dealer contact. Uses setCustomValidity so the existing
+  // checkValidity()/reportValidity() gate in handleSubmit blocks it natively.
+  const handleEmailChange = (e) => {
+    const { value } = e.target;
+    setForm(prev => ({ ...prev, owner_email: value }));
+
+    if (/@teamvedika\.com$/i.test(value.trim())) {
+      e.target.setCustomValidity("TeamVedika email addresses are not allowed. Please use a personal email address.");
+    } else {
+      e.target.setCustomValidity("");
+    }
+  };
+
+  const handleBankSelect = (e) => {
+    const value = e.target.value;
+    if (value === "__other__") {
+      setShowOtherBank(true);
+      setForm(prev => ({ ...prev, bank_name: "" }));
+    } else {
+      setShowOtherBank(false);
+      setForm(prev => ({ ...prev, bank_name: value }));
+    }
+  };
 
   // ----------------- Verification Function (PAN + Aadhaar integrated) -----------------
 const [loadingField, setLoadingField] = useState(null);
@@ -214,6 +329,11 @@ const namesLocked = [
   verifyStatus.gstin_verify_status,
   verifyStatus.aadhaar_ekyc_status,
 ].includes("verified");
+
+// Computed directly from form state (not just set via setCustomValidity on change)
+// so the error is visible immediately and the Submit button can hard-gate on it too —
+// setCustomValidity alone only surfaces on a submit attempt, not while typing.
+const isBlockedEmailDomain = /@teamvedika\.com$/i.test((form.owner_email || "").trim());
 
 
 
@@ -416,19 +536,27 @@ const verifyField = async (type, value = "") => {
         const result = await res.json();
         saveVerifyResponse("bank_penny_drop_response", result);
 
-        // `success` is unreliable here — a confirmed penny-drop can still come back with
-        // success:false, so gate on data.verified instead (per real API response sample).
+        // `success`/top-level `message` are unreliable here — the API can report
+        // message:"...successful" while data.verified is false, so gate on
+        // data.verified and surface data.error_msg (the actual failure reason)
+        // instead of the misleading top-level message.
         if (!result.data?.verified) {
           setVerifyStatus(prev => ({ ...prev, [statusKey]: "failed" }));
-          alert(result.message || "Bank penny-drop verification failed ❌");
+          alert(
+            result.data?.error_msg
+              ? `Bank penny-drop verification failed ❌ (${result.data.error_msg})`
+              : "Bank penny-drop verification failed ❌"
+          );
           return;
         }
 
         const beneficiaryName = result.data.beneficiary_name_with_bank || "";
-        if (!namesMatch(beneficiaryName, [form.owner_name])) {
+        // Bank account can be held in the owner's personal name or the registered
+        // business/showroom name, so either counts as a match — same rule as firm PAN/GST.
+        if (!namesMatch(beneficiaryName, [form.owner_name, form.showroom_name])) {
           setVerifyStatus(prev => ({ ...prev, [statusKey]: "failed" }));
           alert(
-            `Bank account holder name "${beneficiaryName}" does not match Owner Name ❌`
+            `Bank account holder name "${beneficiaryName}" does not match Owner Name / Showroom Name as per GST ❌`
           );
           return;
         }
@@ -476,6 +604,78 @@ const verifyField = async (type, value = "") => {
   }
 };
 
+// ----------------- Mobile OTP (send + verify) -----------------
+// Confirmed via curl: JSON body { mobile }.
+const handleSendOtp = async () => {
+  if (isSendingOtp) return;
+  if (form.owner_contact.length !== 10) {
+    alert("Enter valid mobile number");
+    return;
+  }
+
+  setOtpError("");
+  setIsSendingOtp(true);
+
+  try {
+    const res = await fetch(API.SEND_OTP, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mobile: form.owner_contact }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || data?.status === false || data?.success === false) {
+      throw new Error(data?.message || `OTP send failed (HTTP ${res.status})`);
+    }
+
+    setOtpSent(true);
+    alert(data?.message || "OTP Sent Successfully");
+  } catch (err) {
+    console.error(err);
+    setOtpError(err.message || "Something went wrong while sending the OTP.");
+  } finally {
+    setIsSendingOtp(false);
+  }
+};
+
+// Confirmed via curl: multipart/form-data body { mobile, otp }.
+const handleVerifyOtp = async () => {
+  if (isVerifyingOtp) return;
+  if (mobileOtp.length !== 6) {
+    alert("Enter valid 6 digit OTP");
+    return;
+  }
+
+  setOtpError("");
+  setIsVerifyingOtp(true);
+
+  try {
+    const formData = new FormData();
+    formData.append("mobile", form.owner_contact);
+    formData.append("otp", mobileOtp);
+
+    const res = await fetch(API.VERIFY_MOBILE_OTP, {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || data?.status === false || data?.success === false) {
+      throw new Error(data?.message || `OTP verification failed (HTTP ${res.status})`);
+    }
+
+    setVerifyStatus((prev) => ({ ...prev, mobile_otp_verified: "verified" }));
+    setOtpSent(false);
+    alert(data?.message || "Mobile number verified successfully ✅");
+  } catch (err) {
+    console.error(err);
+    setOtpError(err.message || "Invalid OTP");
+  } finally {
+    setIsVerifyingOtp(false);
+  }
+};
 
 
 
@@ -485,6 +685,7 @@ const verifyField = async (type, value = "") => {
     e.preventDefault();
     if (!e.target.checkValidity()){ e.target.reportValidity(); return; }
     if(selectedManufacturers.length===0){ alert("Please select manufacturer"); return; }
+    if(!capturedImage){ alert("Please capture Live Selfie From Showroom before submitting"); return; }
 
     try {
       setSubmitting(true);
@@ -574,7 +775,7 @@ const verifyField = async (type, value = "") => {
     <div className="customer-page">
       <div className="customer-header">
         <div className="customer-brand"><img src={logo} alt="Vedika"/><span>Dealer Onboarding</span></div>
-        <span className="app-no">DLR-APP-2026-0142 · Draft</span>
+        
       </div>
 
         <div className="customer-layout">
@@ -588,6 +789,7 @@ const verifyField = async (type, value = "") => {
                 <select
                   required
                   name="state"
+                  disabled={namesLocked}
                   value={form.state}
                   onChange={handleChange}
                 >
@@ -608,7 +810,7 @@ const verifyField = async (type, value = "") => {
                 <select
                   required
                   name="district"
-                  disabled={!form.state}
+                  disabled={!form.state || namesLocked}
                   value={form.district}
                   onChange={handleChange}
                 >
@@ -635,7 +837,7 @@ const verifyField = async (type, value = "") => {
                 <select
                   required
                   name="branch"
-                  disabled={!form.district}
+                  disabled={!form.district || namesLocked}
                   value={form.branch}
                   onChange={handleChange}
                 >
@@ -680,6 +882,8 @@ const verifyField = async (type, value = "") => {
                   placeholder="Enter owner name"
                   readOnly={namesLocked}
                   className={namesLocked ? "locked-input" : ""}
+                  pattern="[A-Za-z\s]+"
+                  title="Only letters and spaces are allowed"
                   required
                 />
               </div>
@@ -704,6 +908,7 @@ const verifyField = async (type, value = "") => {
                   name="firm_type"
                   value={form.firm_type}
                   onChange={handleChange}
+                  disabled={namesLocked}
                   required
                 >
                   <option value="">Select Firm Type</option>
@@ -718,10 +923,15 @@ const verifyField = async (type, value = "") => {
                 <label>Year Of Business *</label>
                 <input
                   type="text"
+                  inputMode="numeric"
                   name="year_of_business"
                   value={form.year_of_business}
                   onChange={handleChange}
                   placeholder="Enter year of business"
+                  pattern="[0-9]{1,4}"
+                  title="Enter a valid number of years"
+                  readOnly={namesLocked}
+                  className={namesLocked ? "locked-input" : ""}
                   required
                 />
               </div>
@@ -735,6 +945,11 @@ const verifyField = async (type, value = "") => {
                       value={form.gst_number}
                       onChange={handleChange}
                       placeholder="Enter GST number"
+                      maxLength="15"
+                      pattern="\d{2}[A-Za-z]{5}\d{4}[A-Za-z]{1}\d[Zz]{1}[A-Za-z\d]{1}"
+                      title="Enter a valid 15-character GSTIN"
+                      readOnly={verifyStatus.gstin_verify_status === "verified"}
+                      className={verifyStatus.gstin_verify_status === "verified" ? "locked-input" : ""}
                       required
                     />
 
@@ -756,7 +971,7 @@ const verifyField = async (type, value = "") => {
                 </div>
 
               <div className="form-group">
-                <label>Firm PAN</label>
+                <label>Firm PAN *</label>
                 <div className="verify-input-row">
                   <input
                     type="text"
@@ -764,6 +979,12 @@ const verifyField = async (type, value = "") => {
                     value={form.firm_pan}
                     onChange={handleChange}
                     placeholder="Enter firm PAN"
+                    maxLength="10"
+                    pattern="[A-Za-z]{5}[0-9]{4}[A-Za-z]{1}"
+                    title="Enter a valid PAN, e.g. ABCDE1234F"
+                    readOnly={verifyStatus.firm_pan_verify_status === "verified"}
+                    className={verifyStatus.firm_pan_verify_status === "verified" ? "locked-input" : ""}
+                    required
                   />
                   <button
                       type="button"
@@ -798,11 +1019,16 @@ const verifyField = async (type, value = "") => {
                 <div className="verify-input-row">
                   <input
                     type="text"
+                    inputMode="numeric"
                     name="owner_aadhaar"
                     maxLength="12"
                     value={form.owner_aadhaar}
                     onChange={handleChange}
                     placeholder="Enter owner Aadhar number"
+                    pattern="[0-9]{12}"
+                    title="Enter a valid 12-digit Aadhaar number"
+                    readOnly={verifyStatus.aadhaar_ekyc_status === "verified"}
+                    className={verifyStatus.aadhaar_ekyc_status === "verified" ? "locked-input" : ""}
                     required
                   />
                   <InputVerifyButton
@@ -823,6 +1049,11 @@ const verifyField = async (type, value = "") => {
                     value={form.owner_pan}
                     onChange={handleChange}
                     placeholder="Enter owner PAN number"
+                    maxLength="10"
+                    pattern="[A-Za-z]{5}[0-9]{4}[A-Za-z]{1}"
+                    title="Enter a valid PAN, e.g. ABCDE1234F"
+                    readOnly={verifyStatus.owner_pan_verify_status === "verified"}
+                    className={verifyStatus.owner_pan_verify_status === "verified" ? "locked-input" : ""}
                     required
                   />
                   <button
@@ -848,11 +1079,20 @@ const verifyField = async (type, value = "") => {
                   <div className="verify-input-row">
                     <input
                       type="tel"
+                      inputMode="numeric"
                       name="owner_contact"
                       value={form.owner_contact}
                       onChange={handleChange}
                       placeholder="Enter Mobile Number"
                       maxLength="10"
+                      pattern="[0-9]{10}"
+                      title="Enter a valid 10-digit mobile number"
+                      readOnly={prefilledMobileVerified || verifyStatus.mobile_otp_verified === "verified"}
+                      className={
+                        prefilledMobileVerified || verifyStatus.mobile_otp_verified === "verified"
+                          ? "locked-input"
+                          : ""
+                      }
                       required
                     />
 
@@ -860,18 +1100,10 @@ const verifyField = async (type, value = "") => {
                       <button
                         type="button"
                         className="input-verify-btn"
-                        onClick={() => {
-                          if (form.owner_contact.length !== 10) {
-                            alert("Enter valid mobile number");
-                            return;
-                          }
-
-                          // Call OTP API Here
-                          setOtpSent(true);
-                          alert("OTP Sent Successfully");
-                        }}
+                        onClick={handleSendOtp}
+                        disabled={isSendingOtp}
                       >
-                        Send OTP
+                        {isSendingOtp ? "Sending..." : otpSent ? "Resend OTP" : "Send OTP"}
                       </button>
                     )}
 
@@ -896,8 +1128,9 @@ const verifyField = async (type, value = "") => {
                       >
                         <input
                           type="text"
+                          inputMode="numeric"
                           value={mobileOtp}
-                          onChange={(e) => setMobileOtp(e.target.value)}
+                          onChange={(e) => setMobileOtp(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
                           placeholder="Enter OTP"
                           maxLength="6"
                         />
@@ -905,23 +1138,15 @@ const verifyField = async (type, value = "") => {
                         <button
                           type="button"
                           className="input-verify-btn"
-                          onClick={() => {
-                            // Verify OTP API Call Here
-
-                            if (mobileOtp === "123456") {
-                              setVerifyStatus((prev) => ({
-                                ...prev,
-                                mobile_otp_verified: "verified",
-                              }));
-                            } else {
-                              alert("Invalid OTP");
-                            }
-                          }}
+                          onClick={handleVerifyOtp}
+                          disabled={isVerifyingOtp}
                         >
-                          Verify OTP
+                          {isVerifyingOtp ? "Verifying..." : "Verify OTP"}
                         </button>
                       </div>
                     )}
+
+                  {otpError && <p className="otp-error">{otpError}</p>}
                 </div>
 
               <div className="form-group">
@@ -930,10 +1155,17 @@ const verifyField = async (type, value = "") => {
                   type="email"
                   name="owner_email"
                   value={form.owner_email}
-                  onChange={handleChange}
+                  onChange={handleEmailChange}
                   placeholder="Enter email ID"
+                  title="TeamVedika email addresses are not allowed. Please use a personal email address."
+                  style={isBlockedEmailDomain ? { borderColor: "#dc2626" } : undefined}
                   required
                 />
+                {isBlockedEmailDomain && (
+                  <p className="otp-error">
+                    TeamVedika email addresses are not allowed. Please use a personal email address.
+                  </p>
+                )}
               </div>
             </div>
           </section>
@@ -943,7 +1175,7 @@ const verifyField = async (type, value = "") => {
               <div>
                 <h3>Step 3 · Document Upload Checklist</h3>
                 <p className="upload-note">
-                  PDF / JPG / PNG · Max 5 MB per file · All marked ● are
+                  JPG / PNG · Max 5 MB per file · All marked ● are
                   mandatory.
                 </p>
               </div>
@@ -1002,10 +1234,10 @@ const verifyField = async (type, value = "") => {
 
               <label className="upload-card">
                 <div>
-                  <h4>● Letter of Intent</h4>
+                  <h4>● Letter of Intent *</h4>
                   <p>Per empanelled manufacturer</p>
                 </div>
-                <input type="file" />
+                <input type="file" required />
               </label>
 
               <label className="upload-card">
@@ -1018,10 +1250,10 @@ const verifyField = async (type, value = "") => {
 
               <label className="upload-card warning-card">
                 <div>
-                  <h4>● GSTR-9</h4>
+                  <h4>● GSTR-9 *</h4>
                   <p>Used for turnover verification</p>
                 </div>
-                <input type="file" />
+                <input type="file" required />
               </label>
 
               <label className="upload-card">
@@ -1098,10 +1330,15 @@ const verifyField = async (type, value = "") => {
                 <label>Dealer Bank Account Number *</label>
                 <input
                   type="text"
+                  inputMode="numeric"
                   name="bank_account"
                   value={form.bank_account}
                   onChange={handleChange}
                   placeholder="Enter account number"
+                  pattern="[0-9]{9,18}"
+                  title="Enter a valid bank account number (9-18 digits)"
+                  readOnly={verifyStatus.bank_penny_drop_verified === "verified"}
+                  className={verifyStatus.bank_penny_drop_verified === "verified" ? "locked-input" : ""}
                   required
                 />
               </div>
@@ -1114,20 +1351,41 @@ const verifyField = async (type, value = "") => {
                   value={form.ifsc_code}
                   onChange={handleChange}
                   placeholder="Enter IFSC code"
+                  maxLength="11"
+                  pattern="[A-Za-z]{4}0[A-Za-z0-9]{6}"
+                  title="Enter a valid 11-character IFSC code, e.g. HDFC0001234"
+                  readOnly={verifyStatus.bank_penny_drop_verified === "verified"}
+                  className={verifyStatus.bank_penny_drop_verified === "verified" ? "locked-input" : ""}
                   required
                 />
               </div>
 
               <div className="form-group full-width">
                 <label>Bank Name *</label>
-                <input
-                  type="text"
-                  name="bank_name"
-                  value={form.bank_name}
-                  onChange={handleChange}
-                  placeholder="Enter bank name"
-                  required
-                />
+                <select
+                  name="bank_name_select"
+                  value={showOtherBank ? "__other__" : form.bank_name}
+                  onChange={handleBankSelect}
+                  required={!showOtherBank}
+                >
+                  <option value="">Select Bank</option>
+                  {INDIAN_BANKS.map((bank) => (
+                    <option key={bank} value={bank}>{bank}</option>
+                  ))}
+                  <option value="__other__">Other (specify below)</option>
+                </select>
+
+                {showOtherBank && (
+                  <input
+                    type="text"
+                    name="bank_name"
+                    value={form.bank_name}
+                    onChange={handleChange}
+                    placeholder="Enter bank name"
+                    style={{ marginTop: "8px" }}
+                    required
+                  />
+                )}
               </div>
 
               <div className="form-group full-width">
@@ -1192,10 +1450,24 @@ const verifyField = async (type, value = "") => {
               Save Draft
             </button>
 
-            <button type="submit" className="submit-btn" disabled={submitting}>
+            <button
+              type="submit"
+              className="submit-btn"
+              disabled={submitting || isBlockedEmailDomain}
+              title={
+                isBlockedEmailDomain
+                  ? "TeamVedika email addresses are not allowed"
+                  : undefined
+              }
+            >
               {submitting ? "Submitting..." : "Submit Application"}
             </button>
           </div>
+          {isBlockedEmailDomain && (
+            <p className="otp-error" style={{ textAlign: "right" }}>
+              Owner email cannot be a TeamVedika address — use a personal email.
+            </p>
+          )}
         </form>
 
         <aside className="progress-card">

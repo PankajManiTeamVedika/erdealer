@@ -9,6 +9,27 @@
   overflow-x: hidden;
 }
 
+.loading-msg {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.error-msg {
+  position: relative;
+  z-index: 1;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  margin: 0 0 1rem 0;
+}
+
 /* Corner Bubbles */
 .corner-bubbles {
   position: fixed;

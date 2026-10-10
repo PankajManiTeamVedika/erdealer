@@ -9,6 +9,69 @@
   overflow-x: hidden;
 }
 
+.toggle-details-btn {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toggle-details-btn:hover {
+  background: #dbeafe;
+}
+
+.full-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1.25rem;
+}
+
+@media (max-width: 900px) {
+  .full-details-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .full-details-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.detail-category h4 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 0.5rem 0;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-left: 3px solid #3b82f6;
+  padding-left: 0.6rem;
+}
+
+.doc-value-link {
+  color: #2563eb !important;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.doc-value-link:hover {
+  text-decoration: underline;
+}
+
+.loading-msg {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
 /* Corner Bubbles */
 .corner-bubbles {
   position: fixed;

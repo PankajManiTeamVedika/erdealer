@@ -325,6 +325,12 @@
   margin-top: 1rem;
 }
 
+/* Gap between the co-applicant secondary ID type select and the file upload
+   card(s) that change based on it (PAN vs Voter ID front/back). */
+.co-secondary-docs {
+  margin-top: 1.5rem;
+}
+
 /* Live Image Section */
 .live-image-grid {
   display: grid;

@@ -302,6 +302,22 @@
   font-weight: bold;
 }
 
+.refresh-section-btn {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 0.25rem 0.75rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.refresh-section-btn:hover {
+  background: #e2e8f0;
+}
+
 /* Collapse Body */
 .collapse-body {
   padding: 1.5rem 2rem;
@@ -361,6 +377,33 @@
 .step-action {
   flex-shrink: 0;
   margin-left: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-refresh {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #cbd5e1;
+  background: white;
+  color: #475569;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-refresh:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #1e293b;
+  transform: rotate(90deg);
 }
 
 /* Input Groups - Keep in single line */
@@ -444,6 +487,17 @@
   background: #10b981;
   color: white;
   box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.red-tick {
+  background: #ef4444;
+  color: white;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.bureau-result.bureau-result-rejected {
+  background: #fef2f2;
+  border-left-color: #ef4444;
 }
 
 /* Badges */
@@ -717,10 +771,16 @@
     height: 28px;
     font-size: 1rem;
   }
-  
+
   .locked-badge, .running-badge {
     padding: 0.25rem 0.75rem;
     font-size: 0.7rem;
+  }
+
+  .btn-refresh {
+    width: 26px;
+    height: 26px;
+    font-size: 0.85rem;
   }
 }
 

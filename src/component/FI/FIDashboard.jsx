@@ -3,6 +3,7 @@ import "../../assets/css/style.css";
 import logo from "../../assets/image/logowhite.png";
 import { useNavigate } from "react-router-dom";
 import { API } from "../api/apiRoutes";
+import { getStatusInfo } from "../utils/leadStatus";
 
 const FIDashboard = () => {
   const navigate = useNavigate();
@@ -37,14 +38,15 @@ const FIDashboard = () => {
     }
   };
 
-  // Filter customers based on search and status
+  // Filter customers based on search and funnel stage (fi_status + sanction_status +
+  // vehicle_delevery_status + mandate_status, via the shared getStatusInfo helper)
   const filteredCustomers = customers.filter((cust) => {
     const matchesSearch =
       cust.application_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       cust.applicant_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       cust.applicant_mobile.includes(searchTerm);
     const matchesStatus =
-      statusFilter === "all" || cust.application_status.toLowerCase() === statusFilter;
+      statusFilter === "all" || getStatusInfo(cust).key === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -126,8 +128,12 @@ const FIDashboard = () => {
           />
           <select value={statusFilter} onChange={handleStatusFilter} className="status-filter">
             <option value="all">All Status</option>
-            <option value="submitted">Submitted</option>
-            {/* Add other statuses if they appear */}
+            <option value="fi_pending">FI Pending</option>
+            <option value="sanction_pending">Sanction Pending</option>
+            <option value="mandate_pending">Mandate Pending</option>
+            <option value="post_sanction_pending">Post Sanction Pending</option>
+            <option value="delivered">Vehicle Added - Pending HO Approval</option>
+            <option value="mandate_approved">Mandate Approved</option>
           </select>
         </div>
 
@@ -154,28 +160,29 @@ const FIDashboard = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {currentCustomers.map((cust) => (
-                    <tr key={cust.id}>
-                      <td>{cust.application_id}</td>
-                      <td>{cust.applicant_name}</td>
-                      <td>{cust.applicant_mobile}</td>
-                      <td>{cust.manufacturer_name}</td>
-                      <td>{cust.ltv_ratio}%</td>
-                      <td>
-                        <span className={`status-badge ${cust.application_status.toLowerCase()}`}>
-                          {cust.application_status}
-                        </span>
-                      </td>
-                      <td>
-                        <button
-                          className="view-btn"
-                          onClick={() => navigate(`/customer-details/${cust.id}`)}
-                        >
-                          View
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {currentCustomers.map((cust) => {
+                    const stage = getStatusInfo(cust);
+                    return (
+                      <tr key={cust.id}>
+                        <td>{cust.application_id}</td>
+                        <td>{cust.applicant_name}</td>
+                        <td>{cust.applicant_mobile}</td>
+                        <td>{cust.manufacturer_name}</td>
+                        <td>{cust.ltv_ratio}%</td>
+                        <td>
+                          <span className={`status-badge ${stage.badge}`}>{stage.label}</span>
+                        </td>
+                        <td>
+                          <button
+                            className="view-btn"
+                            onClick={() => navigate(`/customer-details/${cust.id}`)}
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
 

@@ -3,6 +3,7 @@ import "../../assets/css/OfferSummary.css";
 import logo from "../../assets/image/logo.png";
 import { useNavigate } from "react-router-dom";
 import { API } from "../api/apiRoutes";
+import { calculateLtvRatio, calculateMonthlyEmi } from "../utils/loanCalc";
 
 // Dealer subvention slabs by loan amount (₹) — each upper bound is inclusive, the next
 // slab starts one rupee above it.
@@ -24,14 +25,15 @@ const getDealerSubventionForLoanAmount = (loanAmount) => {
   return slab ? slab.amount : "";
 };
 
-// Used only to estimate the EMI shown to the dealer here — the backend determines and
-// stores the actual applicable interest rate, so this isn't displayed or sent in the payload.
-const INTEREST_RATE_ANNUAL = 30;
 // Threshold above which the EMI gets a warning style — informational only, doesn't block submission.
 const EMI_WARNING_THRESHOLD = 9400;
 
 const OfferSummary = () => {
   const navigate = useNavigate();
+  const storedUser = localStorage.getItem("user");
+  const dealerData = storedUser ? JSON.parse(storedUser) : null;
+  const dealerId = dealerData ? dealerData.dealer_id : null;
+  const customerId = dealerData ? dealerData.user_id : null;
   const [isAccepted, setIsAccepted] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
@@ -46,35 +48,31 @@ const storedApp = localStorage.getItem("application_id");
   const [onRoadPrice, setOnRoadPrice] = useState("");
   const [loanAmount, setLoanAmount] = useState("");
   const [tenure, setTenure] = useState("");
-  const [processingFee, setProcessingFee] = useState("");
+  const [processingFee, setProcessingFee] = useState("0");
   const [dealerSubvention, setDealerSubvention] = useState("");
-  const [documentCharge, setDocumentCharge] = useState("");
-  const [insuranceAmount, setInsuranceAmount] = useState("");
+  const [documentCharge, setDocumentCharge] = useState("0");
+  const [insuranceAmount, setInsuranceAmount] = useState("0");
 
   // Auto calculated
   const minDownPayment = Math.ceil(parseInt(onRoadPrice || 0) * 0.20);
   const customerDownPayment = parseInt(onRoadPrice || 0) - parseInt(loanAmount || 0);
-  const totalDownPayment = customerDownPayment > 0 ? customerDownPayment : 0;
+  const baseDownPayment = customerDownPayment > 0 ? customerDownPayment : 0;
+  const totalDownPayment =
+    baseDownPayment +
+    parseInt(processingFee || 0) + parseInt(documentCharge || 0) + parseInt(insuranceAmount || 0);
   const isDownPaymentValid = totalDownPayment >= minDownPayment;
 
-  const ltvRatio = onRoadPrice && loanAmount
-    ? ((parseInt(loanAmount) / parseInt(onRoadPrice)) * 100).toFixed(1)
-    : "0.0";
+  const ltvRatio = calculateLtvRatio(loanAmount, onRoadPrice) ?? "0.0";
   const isLtvValid = parseFloat(ltvRatio) <= 80;
 
   // Monthly EMI, auto-calculated from loan amount, tenure and the fixed policy interest rate.
-  const principal = parseInt(loanAmount || 0, 10);
-  const tenureMonths = parseInt(tenure || 0, 10);
-  const monthlyRate = INTEREST_RATE_ANNUAL / 12 / 100;
-  const monthlyEmi = principal && tenureMonths
-    ? Math.round(
-        (principal * monthlyRate * Math.pow(1 + monthlyRate, tenureMonths)) /
-          (Math.pow(1 + monthlyRate, tenureMonths) - 1)
-      )
-    : 0;
+  const monthlyEmi = calculateMonthlyEmi(loanAmount, tenure);
   const isEmiHigh = monthlyEmi > EMI_WARNING_THRESHOLD;
 
-  // Auto-fill dealer subvention from the loan amount slab; dealer can still override it.
+  // Net payment to dealer = loan amount - dealer subvention.
+  const netPaymentToDealer = parseInt(loanAmount || 0, 10) - parseInt(dealerSubvention || 0, 10);
+
+  // Auto-fill dealer subvention from the loan amount slab; field is read-only.
   useEffect(() => {
     setDealerSubvention(getDealerSubventionForLoanAmount(loanAmount));
   }, [loanAmount]);
@@ -106,7 +104,7 @@ const handleAccept = async () => {
       document_charge:       documentCharge,
       insurance_amount:      insuranceAmount,
       dealer_subvention:     dealerSubvention,
-      customer_down_payment: totalDownPayment,
+      customer_down_payment: baseDownPayment,
       total_down_payment:    totalDownPayment,
       ltv_ratio:             ltvRatio,
       consent_accepted:      1,
@@ -157,8 +155,8 @@ const handleAccept = async () => {
             </div>
           </div>
           <div className="lead-info">
-            <span>Lead ID</span>
-            <strong>VED-7185-2826</strong>
+            <span>Dealer ID</span>
+            <strong>{customerId || dealerId || "—"}</strong>
           </div>
         </div>
       </div>
@@ -170,6 +168,9 @@ const handleAccept = async () => {
             <div className="success-icon">✓</div>
             <h3>Offer Accepted Successfully!</h3>
             <p>Your application has been submitted to pipeline</p>
+            <button className="btn-primary" onClick={() => navigate("/dealer-dashboard")}>
+              Go to Dashboard
+            </button>
           </div>
         </div>
       )}
@@ -342,7 +343,7 @@ const handleAccept = async () => {
               <span>Customer down payment (₹)</span>
               <div>
                 <strong style={{ color: isDownPaymentValid ? 'green' : 'red' }}>
-                  ₹{totalDownPayment.toLocaleString('en-IN')}
+                  ₹{baseDownPayment.toLocaleString('en-IN')}
                 </strong>
                 {onRoadPrice && loanAmount && !isDownPaymentValid && (
                   <p style={{ color: 'red', fontSize: '12px', margin: '4px 0 0' }}>
@@ -364,6 +365,7 @@ const handleAccept = async () => {
                 placeholder="Enter dealer subvention"
                 value={dealerSubvention}
                 onChange={(e) => setDealerSubvention(e.target.value)}
+                readOnly
               />
             </div>
             <div className="charge-item total">
@@ -380,10 +382,10 @@ const handleAccept = async () => {
           </div>
           <div className="net-payment">
             <p>
-              Loan ₹{parseInt(loanAmount || 0).toLocaleString('en-IN')} – Processing
-              ₹{parseInt(processingFee || 0).toLocaleString('en-IN')} + Subvention adj.
+              Loan ₹{parseInt(loanAmount || 0).toLocaleString('en-IN')} – Subvention
+              ₹{parseInt(dealerSubvention || 0).toLocaleString('en-IN')}
             </p>
-            <p className="net-amount">Net of applicable deductions</p>
+            <p className="net-amount">₹{netPaymentToDealer.toLocaleString('en-IN')}</p>
           </div>
         </div>
 

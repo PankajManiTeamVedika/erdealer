@@ -13,6 +13,127 @@
   box-sizing: border-box;
 }
 
+/* View Reason button — sits next to the doc status badge */
+.as-view-reason-btn {
+  background: #fff3f0;
+  color: #d9480f;
+  border: 1px solid #f5c2b3;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.as-view-reason-btn:hover {
+  background: #ffe4db;
+  border-color: #e8a186;
+}
+
+.as-view-reason-btn:active {
+  background: #ffd6c7;
+}
+
+/* Reason + Re-upload modal (only needed if DealerDetails.css isn't imported here) */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  width: 100%;
+  max-width: 420px;
+  position: relative;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-content h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.cancel-doc-name {
+  font-weight: 600;
+  color: #333;
+  margin: 4px 0;
+}
+
+.close-modal {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: #888;
+}
+
+.close-modal:hover {
+  color: #333;
+}
+
+.modal-content input[type="file"] {
+  width: 100%;
+  padding: 8px;
+  border: 1px dashed #ccc;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.modal-cancel {
+  background: #f0f0f0;
+  color: #444;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.modal-cancel:hover {
+  background: #e2e2e2;
+}
+
+.modal-submit {
+  background: #1e7f52;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.modal-submit:hover:not(:disabled) {
+  background: #196c46;
+}
+
+.modal-submit:disabled {
+  background: #b7cfc2;
+  cursor: not-allowed;
+}
+
 .app-status-page .as-container {
   max-width: 1180px;
   margin: 0 auto;

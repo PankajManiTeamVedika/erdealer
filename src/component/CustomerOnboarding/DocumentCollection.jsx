@@ -4,38 +4,186 @@ import logo from "../../assets/image/logo.png";
 import { useNavigate } from "react-router-dom";
 import { API } from "../api/apiRoutes";
 
+const INDIAN_BANKS = [
+  "State Bank of India",
+  "Punjab National Bank",
+  "Bank of Baroda",
+  "Canara Bank",
+  "Union Bank of India",
+  "Bank of India",
+  "Indian Bank",
+  "Central Bank of India",
+  "Indian Overseas Bank",
+  "UCO Bank",
+  "Bank of Maharashtra",
+  "Punjab & Sind Bank",
+  "HDFC Bank",
+  "ICICI Bank",
+  "Axis Bank",
+  "Kotak Mahindra Bank",
+  "IndusInd Bank",
+  "Yes Bank",
+  "IDFC FIRST Bank",
+  "Federal Bank",
+  "South Indian Bank",
+  "Karnataka Bank",
+  "Karur Vysya Bank",
+  "City Union Bank",
+  "Tamilnad Mercantile Bank",
+  "DCB Bank",
+  "RBL Bank",
+  "Bandhan Bank",
+  "CSB Bank",
+  "Dhanlaxmi Bank",
+  "Jammu & Kashmir Bank",
+  "Nainital Bank",
+  "AU Small Finance Bank",
+  "Equitas Small Finance Bank",
+  "Ujjivan Small Finance Bank",
+  "ESAF Small Finance Bank",
+  "Suryoday Small Finance Bank",
+  "Utkarsh Small Finance Bank",
+  "Jana Small Finance Bank",
+  "North East Small Finance Bank",
+  "Shivalik Small Finance Bank",
+  "Unity Small Finance Bank",
+  "Airtel Payments Bank",
+  "India Post Payments Bank",
+  "Paytm Payments Bank",
+  "Fino Payments Bank",
+  "Jio Payments Bank",
+  "HSBC Bank",
+  "Standard Chartered Bank",
+  "Citibank",
+  "Deutsche Bank",
+  "Bank of America",
+].sort();
+
+// Normalizes a name for comparison: lowercase, strips punctuation, collapses whitespace.
+const normalizeName = (str = "") =>
+  str
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const REFERENCE_RELATIONS = [
+  "Father",
+  "Mother",
+  "Spouse",
+  "Son",
+  "Daughter",
+  "Brother",
+  "Sister",
+  "Friend",
+  "Relative",
+  "Neighbour",
+  "Colleague",
+  "Employer",
+  "Other",
+];
+
+const OCCUPATIONS = [
+  "Salaried (Government)",
+  "Salaried (Private)",
+  "Self-Employed",
+  "E-Rickshaw Driver",
+  "House Wife",
+];
+
+// Penny-drop returns the bank's name for the account (often reordered/abbreviated),
+// so match on whether every word of the shorter name appears in the longer one
+// rather than requiring an exact string match.
+const namesMatch = (nameA, nameB) => {
+  const normA = normalizeName(nameA);
+  const normB = normalizeName(nameB);
+  if (!normA || !normB) return false;
+  if (normA === normB) return true;
+
+  const tokensA = normA.split(" ").filter(Boolean);
+  const tokensB = normB.split(" ").filter(Boolean);
+  const [shorterTokens, longerTokens] =
+    tokensA.length <= tokensB.length ? [tokensA, tokensB] : [tokensB, tokensA];
+
+  return shorterTokens.length > 0 && shorterTokens.every((tok) => longerTokens.includes(tok));
+};
+
+// Finds the first pair of matching mobile numbers among applicant, co-applicant,
+// and the two references — none of these four should share the same mobile number.
+// Only compares full 10-digit numbers so partially-typed input isn't flagged.
+const findDuplicateMobile = (contacts) => {
+  const entries = contacts.filter((c) => c.value && c.value.replace(/\D/g, "").length === 10);
+
+  for (let i = 0; i < entries.length; i++) {
+    for (let j = i + 1; j < entries.length; j++) {
+      if (entries[i].value === entries[j].value) {
+        return `${entries[i].label} and ${entries[j].label} mobile numbers cannot be the same`;
+      }
+    }
+  }
+  return null;
+};
+
 const DocumentCollection = () => {
   const navigate = useNavigate();
+  const storedUser = localStorage.getItem("user");
+  const dealerData = storedUser ? JSON.parse(storedUser) : null;
+  const dealerId = dealerData ? dealerData.dealer_id : null;
+  const customerId = dealerData ? dealerData.user_id : null;
+  // Applicant / co-applicant names captured during Stage 1 (ApplicantVerification),
+  // used to match against the penny-drop bank account holder name.
+  const applicantName = localStorage.getItem("applicant_name") || "";
+  const coApplicantName = localStorage.getItem("co_applicant_name") || "";
+  // Applicant / co-applicant mobile numbers captured during Stage 1, used to make sure
+  // neither reference reuses the applicant's, co-applicant's, or the other reference's mobile.
+  const applicantMobile = localStorage.getItem("applicant_mobile") || "";
+  const coApplicantMobile = localStorage.getItem("co_applicant_mobile") || "";
   // State for form fields
   const [houseType, setHouseType] = useState("");
   const [proofType, setProofType] = useState("");
-  const [accountNumber, setAccountNumber] = useState("5010XXXXXXX291");
-  const [ifsc, setIfsc] = useState("HDFC0001234");
-  const [bank, setBank] = useState("HDFC Bank");
+  const [occupation, setOccupation] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [ifsc, setIfsc] = useState("");
+  const [bank, setBank] = useState("");
+  const [showOtherBank, setShowOtherBank] = useState(false);
   const [pennyDropStatus, setPennyDropStatus] = useState(false);
   const [loading, setLoading] = useState(false);
   
   // File upload states
-  const [aadhaarFile, setAadhaarFile] = useState(null);
+  const [aadhaarFrontFile, setAadhaarFrontFile] = useState(null);
+  const [aadhaarBackFile, setAadhaarBackFile] = useState(null);
   const [panFile, setPanFile] = useState(null);
   const [houseProofFile, setHouseProofFile] = useState(null);
+
+  // Co-applicant file upload states
+  const [coAadhaarFrontFile, setCoAadhaarFrontFile] = useState(null);
+  const [coAadhaarBackFile, setCoAadhaarBackFile] = useState(null);
+  // Mirrors the PAN/Voter ID choice from ApplicantVerification: "3" = PAN Card, "2" = Voter ID.
+  const [coSecondaryIdType, setCoSecondaryIdType] = useState("3");
+  const [coPanFile, setCoPanFile] = useState(null);
+  const [coVoterFrontFile, setCoVoterFrontFile] = useState(null);
+  const [coVoterBackFile, setCoVoterBackFile] = useState(null);
 const [pennyDropLoading, setPennyDropLoading] = useState(false); // NEW
 const [pennyDropResult, setPennyDropResult] = useState(null);
+// Raw penny-drop API response (success or failure), saved as-is with Stage 2 for audit/record.
+const [pennyDropApiResponse, setPennyDropApiResponse] = useState(null);
   
   // Reference states
   const [reference1, setReference1] = useState({
-    name: "Ram Prasad",
-    relationship: "Neighbour",
-    mobile: "97XXXX2210",
+    name: "",
+    relationship: "",
+    mobile: "",
     otpVerified: false,
     otpSent: false,
     otpValue: ""
   });
-  
+
   const [reference2, setReference2] = useState({
-    name: "Mohan Lal",
-    relationship: "Relative",
-    mobile: "98XXXX7781",
+    name: "",
+    relationship: "",
+    mobile: "",
     otpVerified: false,
     otpSent: false,
     otpValue: ""
@@ -50,8 +198,8 @@ const [pennyDropResult, setPennyDropResult] = useState(null);
   const [showCoApplicantCamera, setShowCoApplicantCamera] = useState(false);
   
   // Quotation states
-  const [onRoadPrice, setOnRoadPrice] = useState("185000");
-  const [downPayment, setDownPayment] = useState("35000");
+  const [onRoadPrice, setOnRoadPrice] = useState("");
+  const [downPayment, setDownPayment] = useState("");
   const [quotationFile, setQuotationFile] = useState(null);
   
   // UI State
@@ -60,10 +208,16 @@ const [pennyDropResult, setPennyDropResult] = useState(null);
   const [success, setSuccess] = useState("");
   
   // Refs for file inputs
-  const aadhaarInputRef = useRef(null);
+  const aadhaarFrontInputRef = useRef(null);
+  const aadhaarBackInputRef = useRef(null);
   const panInputRef = useRef(null);
   const houseProofInputRef = useRef(null);
   const quotationInputRef = useRef(null);
+  const coAadhaarFrontInputRef = useRef(null);
+  const coAadhaarBackInputRef = useRef(null);
+  const coPanInputRef = useRef(null);
+  const coVoterFrontInputRef = useRef(null);
+  const coVoterBackInputRef = useRef(null);
   
   // Video ref for camera
   const videoRef = useRef(null);
@@ -84,8 +238,11 @@ const [pennyDropResult, setPennyDropResult] = useState(null);
       }
       
       switch(type) {
-        case 'aadhaar':
-          setAadhaarFile(file);
+        case 'aadhaarFront':
+          setAadhaarFrontFile(file);
+          break;
+        case 'aadhaarBack':
+          setAadhaarBackFile(file);
           break;
         case 'pan':
           setPanFile(file);
@@ -95,6 +252,21 @@ const [pennyDropResult, setPennyDropResult] = useState(null);
           break;
         case 'quotation':
           setQuotationFile(file);
+          break;
+        case 'coAadhaarFront':
+          setCoAadhaarFrontFile(file);
+          break;
+        case 'coAadhaarBack':
+          setCoAadhaarBackFile(file);
+          break;
+        case 'coPan':
+          setCoPanFile(file);
+          break;
+        case 'coVoterFront':
+          setCoVoterFrontFile(file);
+          break;
+        case 'coVoterBack':
+          setCoVoterBackFile(file);
           break;
         default:
           break;
@@ -198,15 +370,30 @@ const [pennyDropResult, setPennyDropResult] = useState(null);
     }
   };
 
+  // Switching between PAN/Voter ID clears whichever file(s) were already uploaded
+  // for the previous type, so a stale PAN file doesn't get submitted after switching
+  // to Voter ID (or vice versa).
+  const handleCoSecondaryIdTypeChange = (e) => {
+    setCoSecondaryIdType(e.target.value);
+    setCoPanFile(null);
+    setCoVoterFrontFile(null);
+    setCoVoterBackFile(null);
+  };
+
+  const handleBankSelect = (e) => {
+    const value = e.target.value;
+    if (value === "__other__") {
+      setShowOtherBank(true);
+      setBank("");
+    } else {
+      setShowOtherBank(false);
+      setBank(value);
+    }
+  };
+
   const handlePennyDrop = async () => {
     if (!accountNumber || !ifsc) {
       setError("Please enter valid account number and IFSC");
-      return;
-    }
-
-    const kycId = localStorage.getItem("applicant_kyc_id");
-    if (!kycId) {
-      setError("KYC ID missing. Please complete applicant CB verification in Stage 1 first.");
       return;
     }
 
@@ -214,39 +401,46 @@ const [pennyDropResult, setPennyDropResult] = useState(null);
     setError("");
 
     try {
-      const params = new URLSearchParams();
-      params.append("kyc_id", kycId);
-      params.append("emp_id", "1"); // static as instructed
-
-      const res = await fetch("http://20.219.130.232:8080/er_web/api/er-loan/penny-drop", {
+      const res = await fetch(API.BANK_PENNY_DROP_API, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: params.toString(),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ account_number: accountNumber, ifsc }),
       });
 
-      const rawText = await res.text();
-      console.log("Penny-drop raw response:", rawText);
+      const result = await res.json();
+      console.log("Penny-drop response:", result);
+      // Saved with Stage 2 regardless of outcome, so a failed/mismatched attempt is
+      // still on record for audit.
+      setPennyDropApiResponse(result);
 
-      let result;
-      try {
-        result = JSON.parse(rawText);
-      } catch (parseErr) {
-        throw new Error("Non-JSON response from penny-drop service");
-      }
-
-      // NOTE: adjust these field names once you see the real response shape
-      const isSuccess = result.success === true || result.success === "true" || result.status === "success";
-
-      if (isSuccess) {
-        setPennyDropStatus(true);
-        setPennyDropResult(result);
-        setSuccess("Penny-drop verification successful!");
-      } else {
+      // `success` is unreliable here — a confirmed penny-drop can still come back with
+      // success:false, so gate on data.verified instead (same as Dealer Onboarding).
+      if (!result.data?.verified) {
         setPennyDropStatus(false);
+        setPennyDropResult(null);
         setError(result.message || "Penny-drop verification failed. Please check account details.");
+        return;
       }
+
+      const beneficiaryName = result.data.beneficiary_name_with_bank || "";
+      const matchedWith = namesMatch(beneficiaryName, applicantName)
+        ? "applicant"
+        : namesMatch(beneficiaryName, coApplicantName)
+        ? "co-applicant"
+        : null;
+
+      if (!matchedWith) {
+        setPennyDropStatus(false);
+        setPennyDropResult({ account_holder_name: beneficiaryName });
+        setError(
+          `Penny-drop account name "${beneficiaryName}" does not match the applicant or co-applicant name. Please recheck the account details.`
+        );
+        return;
+      }
+
+      setPennyDropStatus(true);
+      setPennyDropResult({ account_holder_name: beneficiaryName, matched_with: matchedWith });
+      setSuccess(`Penny-drop verification successful! Name matches ${matchedWith}.`);
     } catch (err) {
       console.error("Penny-drop error:", err);
       setError("Error processing penny-drop verification. Please try again.");
@@ -344,21 +538,31 @@ const [pennyDropResult, setPennyDropResult] = useState(null);
 
   const handleReferenceChange = (refNum, field, value) => {
     if (refNum === 1) {
-      setReference1({ 
-        ...reference1, 
-        [field]: value, 
+      setReference1({
+        ...reference1,
+        [field]: value,
         otpVerified: false,
         otpSent: false,
         otpValue: ""
       });
     } else {
-      setReference2({ 
-        ...reference2, 
-        [field]: value, 
+      setReference2({
+        ...reference2,
+        [field]: value,
         otpVerified: false,
         otpSent: false,
         otpValue: ""
       });
+    }
+
+    if (field === 'mobile') {
+      const conflict = findDuplicateMobile([
+        { label: "Applicant", value: applicantMobile },
+        { label: "Co-applicant", value: coApplicantMobile },
+        { label: "Reference 1", value: refNum === 1 ? value : reference1.mobile },
+        { label: "Reference 2", value: refNum === 2 ? value : reference2.mobile },
+      ]);
+      setError(conflict || "");
     }
   };
 
@@ -377,16 +581,33 @@ const storedApp = localStorage.getItem("application_id");
 const saveStage2 = async () => {
   
   // --- Validations (keep your existing handleSubmit checks) ---
-  if (!aadhaarFile)          { alert("Please upload Aadhaar copy");           return; }
+  if (!aadhaarFrontFile)     { alert("Please upload Aadhaar front side");     return; }
+  if (!aadhaarBackFile)      { alert("Please upload Aadhaar back side");      return; }
   if (!panFile)              { alert("Please upload PAN copy");               return; }
   if (!houseProofFile)       { alert("Please upload House proof");            return; }
+  if (!coAadhaarFrontFile)   { alert("Please upload co-applicant Aadhaar front side"); return; }
+  if (!coAadhaarBackFile)    { alert("Please upload co-applicant Aadhaar back side");  return; }
+  if (coSecondaryIdType === "2") {
+    if (!coVoterFrontFile)   { alert("Please upload co-applicant Voter ID front side"); return; }
+    if (!coVoterBackFile)    { alert("Please upload co-applicant Voter ID back side");  return; }
+  } else {
+    if (!coPanFile)          { alert("Please upload co-applicant PAN copy");            return; }
+  }
   if (!houseType)            { alert("Please select house type");             return; }
   if (houseType === "owned" && !proofType) { alert("Please select proof type"); return; }
+  if (!occupation)           { alert("Please select occupation");             return; }
   if (!applicantImage)       { alert("Please capture applicant live image");  return; }
   if (!applicantLiveness)    { alert("Please complete liveness check");       return; }
   // if (!pennyDropStatus)      { alert("Please complete penny-drop");           return; }
   if (!quotationFile)        { alert("Please upload quotation PDF");          return; }
   // if (!storedApp)            { alert("Application ID missing. Go back to Stage 1."); return; }
+  const mobileConflict = findDuplicateMobile([
+    { label: "Applicant", value: applicantMobile },
+    { label: "Co-applicant", value: coApplicantMobile },
+    { label: "Reference 1", value: reference1.mobile },
+    { label: "Reference 2", value: reference2.mobile },
+  ]);
+  if (mobileConflict) { alert(mobileConflict); return; }
   setLoading(true);
   try {
     // Use FormData because we have actual file uploads
@@ -396,10 +617,22 @@ const saveStage2 = async () => {
     formData.append("application_id", storedApp);
 
     // Actual file uploads
-    formData.append("aadhaar_copy_file", aadhaarFile);
+    formData.append("aadhaar_front_file", aadhaarFrontFile);
+    formData.append("aadhaar_back_file",  aadhaarBackFile);
     formData.append("pan_copy_file",     panFile);
     formData.append("house_proof_file",  houseProofFile);
     formData.append("quotation_image",   quotationFile);
+
+    // Co-applicant KYC documents
+    formData.append("co_applicant_aadhaar_front_file", coAadhaarFrontFile);
+    formData.append("co_applicant_aadhaar_back_file",  coAadhaarBackFile);
+    formData.append("co_applicant_secondary_id_type",  coSecondaryIdType);
+    if (coSecondaryIdType === "2") {
+      formData.append("co_applicant_voter_front_file", coVoterFrontFile);
+      formData.append("co_applicant_voter_back_file",  coVoterBackFile);
+    } else {
+      formData.append("co_applicant_pan_file", coPanFile);
+    }
 
     // Base64 camera images (stored as strings in state)
     if (applicantImage) {
@@ -415,11 +648,14 @@ const saveStage2 = async () => {
     formData.append("house_type",           houseType);
     formData.append("house_ownership_type", houseType === "owned" ? "owned" : "rented");
     formData.append("house_proof_type",     proofType || "");
+    formData.append("occupation",           occupation);
 
     // Bank details
     formData.append("bank_account_number", accountNumber);
     formData.append("ifsc_code",           ifsc);
     formData.append("bank_name",           bank);
+    // Raw penny-drop API response (success or failure), for audit/record on the backend.
+    formData.append("penny_drop_response", JSON.stringify(pennyDropApiResponse || {}));
 
     // References
     formData.append("ref1_name",         reference1.name);
@@ -474,8 +710,12 @@ const saveStage2 = async () => {
 
   // Submit handler with validations
   const handleSubmit = () => {
-    if (!aadhaarFile) {
-      setError("Please upload Aadhaar copy");
+    if (!aadhaarFrontFile) {
+      setError("Please upload Aadhaar front side");
+      return;
+    }
+    if (!aadhaarBackFile) {
+      setError("Please upload Aadhaar back side");
       return;
     }
     if (!panFile) {
@@ -548,8 +788,8 @@ const saveStage2 = async () => {
             </div>
           </div>
           <div className="lead-info">
-            <span>Lead ID</span>
-            <strong>VED-7185-2026</strong>
+            <span>Dealer ID</span>
+            <strong>{customerId || dealerId || "—"}</strong>
           </div>
         </div>
       </div>
@@ -580,17 +820,34 @@ const saveStage2 = async () => {
                 <div className="doc-card">
                   <div className="doc-icon">📄</div>
                   <div className="doc-info">
-                    <strong>Aadhaar copy</strong>
-                    <p>Upload front & back</p>
-                    <input 
-                      type="file" 
-                      ref={aadhaarInputRef}
+                    <strong>Aadhaar front side</strong>
+                    <p>Upload front of Aadhaar card</p>
+                    <input
+                      type="file"
+                      ref={aadhaarFrontInputRef}
                       style={{ display: 'none' }}
                       accept="image/*,application/pdf"
-                      onChange={(e) => handleFileUpload('aadhaar', e)}
+                      onChange={(e) => handleFileUpload('aadhaarFront', e)}
                     />
-                    <button className="upload-btn" onClick={() => aadhaarInputRef.current.click()}>
-                      {aadhaarFile ? "✓ Uploaded" : "Upload →"}
+                    <button className="upload-btn" onClick={() => aadhaarFrontInputRef.current.click()}>
+                      {aadhaarFrontFile ? "✓ Uploaded" : "Upload →"}
+                    </button>
+                  </div>
+                </div>
+                <div className="doc-card">
+                  <div className="doc-icon">📄</div>
+                  <div className="doc-info">
+                    <strong>Aadhaar back side</strong>
+                    <p>Upload back of Aadhaar card</p>
+                    <input
+                      type="file"
+                      ref={aadhaarBackInputRef}
+                      style={{ display: 'none' }}
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleFileUpload('aadhaarBack', e)}
+                    />
+                    <button className="upload-btn" onClick={() => aadhaarBackInputRef.current.click()}>
+                      {aadhaarBackFile ? "✓ Uploaded" : "Upload →"}
                     </button>
                   </div>
                 </div>
@@ -666,6 +923,148 @@ const saveStage2 = async () => {
                       <option value="sale-deed">Sale deed</option>
                       <option value="registry">Registry document</option>
                     </select>
+                  </div>
+                )}
+
+                <div className="proof-type-section">
+                  <label className="section-label">Occupation</label>
+                  <select
+                    value={occupation}
+                    onChange={(e) => setOccupation(e.target.value)}
+                    className="form-select"
+                  >
+                    <option value="">Select occupation</option>
+                    {OCCUPATIONS.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Co-applicant KYC Documents Section */}
+        <div className="collapse-card">
+          <div
+            className="collapse-header"
+            onClick={() => setActiveSection(activeSection === "cokyc" ? "" : "cokyc")}
+          >
+            <div className="header-left">
+              <span className="collapse-icon">{activeSection === "cokyc" ? "▼" : "▶"}</span>
+              <h3>Co-applicant KYC document</h3>
+            </div>
+            <div className="status-badge success">
+              <span className="checkmark">✓</span> In Progress
+            </div>
+          </div>
+
+          {activeSection === "cokyc" && (
+            <div className="collapse-body">
+              <div className="docs-grid">
+                <div className="doc-card">
+                  <div className="doc-icon">📄</div>
+                  <div className="doc-info">
+                    <strong>Co-applicant Aadhaar front side</strong>
+                    <p>Upload front of Aadhaar card</p>
+                    <input
+                      type="file"
+                      ref={coAadhaarFrontInputRef}
+                      style={{ display: 'none' }}
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleFileUpload('coAadhaarFront', e)}
+                    />
+                    <button className="upload-btn" onClick={() => coAadhaarFrontInputRef.current.click()}>
+                      {coAadhaarFrontFile ? "✓ Uploaded" : "Upload →"}
+                    </button>
+                  </div>
+                </div>
+                <div className="doc-card">
+                  <div className="doc-icon">📄</div>
+                  <div className="doc-info">
+                    <strong>Co-applicant Aadhaar back side</strong>
+                    <p>Upload back of Aadhaar card</p>
+                    <input
+                      type="file"
+                      ref={coAadhaarBackInputRef}
+                      style={{ display: 'none' }}
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleFileUpload('coAadhaarBack', e)}
+                    />
+                    <button className="upload-btn" onClick={() => coAadhaarBackInputRef.current.click()}>
+                      {coAadhaarBackFile ? "✓ Uploaded" : "Upload →"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="proof-type-section">
+                <label className="section-label">Co-applicant secondary ID type</label>
+                <select
+                  value={coSecondaryIdType}
+                  onChange={handleCoSecondaryIdTypeChange}
+                  className="form-select"
+                >
+                  <option value="3">PAN Card</option>
+                  <option value="2">Voter ID</option>
+                </select>
+              </div>
+
+              <div className="docs-grid co-secondary-docs">
+                {coSecondaryIdType === "2" ? (
+                  <>
+                    <div className="doc-card">
+                      <div className="doc-icon">🪪</div>
+                      <div className="doc-info">
+                        <strong>Co-applicant Voter ID front side</strong>
+                        <p>Upload front of Voter ID card</p>
+                        <input
+                          type="file"
+                          ref={coVoterFrontInputRef}
+                          style={{ display: 'none' }}
+                          accept="image/*,application/pdf"
+                          onChange={(e) => handleFileUpload('coVoterFront', e)}
+                        />
+                        <button className="upload-btn" onClick={() => coVoterFrontInputRef.current.click()}>
+                          {coVoterFrontFile ? "✓ Uploaded" : "Upload →"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="doc-card">
+                      <div className="doc-icon">🪪</div>
+                      <div className="doc-info">
+                        <strong>Co-applicant Voter ID back side</strong>
+                        <p>Upload back of Voter ID card</p>
+                        <input
+                          type="file"
+                          ref={coVoterBackInputRef}
+                          style={{ display: 'none' }}
+                          accept="image/*,application/pdf"
+                          onChange={(e) => handleFileUpload('coVoterBack', e)}
+                        />
+                        <button className="upload-btn" onClick={() => coVoterBackInputRef.current.click()}>
+                          {coVoterBackFile ? "✓ Uploaded" : "Upload →"}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="doc-card">
+                    <div className="doc-icon">📋</div>
+                    <div className="doc-info">
+                      <strong>Co-applicant PAN copy</strong>
+                      <p>Upload PAN card</p>
+                      <input
+                        type="file"
+                        ref={coPanInputRef}
+                        style={{ display: 'none' }}
+                        accept="image/*,application/pdf"
+                        onChange={(e) => handleFileUpload('coPan', e)}
+                      />
+                      <button className="upload-btn" onClick={() => coPanInputRef.current.click()}>
+                        {coPanFile ? "✓ Uploaded" : "Upload →"}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -822,13 +1221,28 @@ const saveStage2 = async () => {
                 </div>
                 <div className="bank-field">
                   <label>Bank</label>
-                  <input 
-                    type="text" 
-                    value={bank} 
-                    onChange={(e) => setBank(e.target.value)}
+                  <select
+                    value={showOtherBank ? "__other__" : bank}
+                    onChange={handleBankSelect}
                     className="form-input"
-                    placeholder="Enter bank name"
-                  />
+                  >
+                    <option value="">Select Bank</option>
+                    {INDIAN_BANKS.map((bankName) => (
+                      <option key={bankName} value={bankName}>{bankName}</option>
+                    ))}
+                    <option value="__other__">Other (specify below)</option>
+                  </select>
+
+                  {showOtherBank && (
+                    <input
+                      type="text"
+                      value={bank}
+                      onChange={(e) => setBank(e.target.value)}
+                      className="form-input"
+                      placeholder="Enter bank name"
+                      style={{ marginTop: "8px" }}
+                    />
+                  )}
                 </div>
               </div>
               
@@ -843,7 +1257,7 @@ const saveStage2 = async () => {
                       <strong>Penny-drop successful</strong>
                       <p>
                         {pennyDropResult?.account_holder_name
-                          ? `Account name "${pennyDropResult.account_holder_name}"${pennyDropResult.match_percentage ? ` — matches applicant name (${pennyDropResult.match_percentage}%)` : ""}`
+                          ? `Account name "${pennyDropResult.account_holder_name}" — matches ${pennyDropResult.matched_with === "co-applicant" ? "co-applicant" : "applicant"} name`
                           : "Bank account verified."}
                       </p>
                     </div>
@@ -886,13 +1300,16 @@ const saveStage2 = async () => {
                   </div>
                   <div className="ref-field">
                     <label>Relationship</label>
-                    <input 
-                      type="text" 
-                      value={reference1.relationship} 
+                    <select
+                      value={reference1.relationship}
                       onChange={(e) => handleReferenceChange(1, 'relationship', e.target.value)}
                       className="form-input"
-                      placeholder="Enter relationship"
-                    />
+                    >
+                      <option value="">Select relationship</option>
+                      {REFERENCE_RELATIONS.map((relation) => (
+                        <option key={relation} value={relation}>{relation}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="ref-field">
                     <label>Mobile</label>
@@ -952,13 +1369,16 @@ const saveStage2 = async () => {
                   </div>
                   <div className="ref-field">
                     <label>Relationship</label>
-                    <input 
-                      type="text" 
-                      value={reference2.relationship} 
+                    <select
+                      value={reference2.relationship}
                       onChange={(e) => handleReferenceChange(2, 'relationship', e.target.value)}
                       className="form-input"
-                      placeholder="Enter relationship"
-                    />
+                    >
+                      <option value="">Select relationship</option>
+                      {REFERENCE_RELATIONS.map((relation) => (
+                        <option key={relation} value={relation}>{relation}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="ref-field">
                     <label>Mobile</label>
@@ -1029,7 +1449,7 @@ const saveStage2 = async () => {
               <div className="quotation-section">
                 <div className="quotation-file">
                   <span className="file-icon">📄</span>
-                  <span>{quotationFile ? quotationFile.name : "quotation_terra.pdf"}</span>
+                  <span>{quotationFile ? quotationFile.name : "No file selected"}</span>
                   <input 
                     type="file" 
                     ref={quotationInputRef}
@@ -1043,7 +1463,7 @@ const saveStage2 = async () => {
                 </div>
                 
                 <div className="pricing-fields">
-                  <div className="price-field">
+                  {/* <div className="price-field">
                     <label>On-road price (₹)</label>
                     <input 
                       type="text" 
@@ -1052,8 +1472,8 @@ const saveStage2 = async () => {
                       className="form-input"
                       placeholder="Enter on-road price"
                     />
-                  </div>
-                  <div className="price-field">
+                  </div> */}
+                  {/* <div className="price-field">
                     <label>Down payment (₹)</label>
                     <input 
                       type="text" 
@@ -1062,13 +1482,13 @@ const saveStage2 = async () => {
                       className="form-input"
                       placeholder="Enter down payment"
                     />
-                  </div>
+                  </div> */}
                 </div>
                 
-                <div className="validation-note">
+                {/* <div className="validation-note">
                   <span className="check-icon">✓</span>
                   On-road price cross-checked against quotation PDF and Terra Power Plus price band (₹1.78–1.92 L). Within range.
-                </div>
+                </div> */}
               </div>
             </div>
           )}

@@ -8,6 +8,13 @@
   overflow-x: hidden;
 }
 
+.loading-msg {
+  text-align: center;
+  padding: 1rem;
+  color: #475569;
+  font-size: 0.85rem;
+}
+
 /* Corner Bubbles – reuse from other components (same code as before) */
 .corner-bubbles { /* ... copy the same styles from DealerDetails or similar */ }
 .bubble { /* ... */ }
@@ -128,6 +135,24 @@
   height: 24px;
   font-size: 0.85rem;
   flex-shrink: 0;
+}
+.mandate-status.pending {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.mandate-auth-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.send-sign-btn.secondary {
+  background: transparent;
+  color: #3b82f6;
+  border: 1px solid #3b82f6;
+}
+.send-sign-btn.secondary:hover:not(:disabled) {
+  background: #eff6ff;
 }
 .mandate-error {
   margin: 0.5rem 0 0;

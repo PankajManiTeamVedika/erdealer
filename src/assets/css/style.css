@@ -3498,6 +3498,11 @@ body {
   color: #991b1b;
 }
 
+.status-badge.sanctioned {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
 .view-btn {
   background: none;
   border: 1px solid #cbd5e1;
@@ -3538,6 +3543,40 @@ body {
 .page-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.page-btn.active {
+  background: #073763;
+  border-color: #073763;
+  color: white;
+  font-weight: 600;
+}
+
+.page-btn.active:hover {
+  background: #0b4f91;
+}
+
+.tab-with-badge {
+  position: relative;
+  overflow: visible;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  box-shadow: 0 0 0 2px white;
 }
 
 .page-info {

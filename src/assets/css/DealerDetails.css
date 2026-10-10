@@ -301,6 +301,26 @@ strong.rejected { color: #ef4444; }
   cursor: help;
 }
 
+.approved-badge {
+  background: #dcfce7;
+  color: #166534;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 30px;
+}
+
+.gst-goods-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  color: #1e293b;
+}
+
+.gst-goods-list li {
+  margin-bottom: 0.2rem;
+}
+
 .doc-cancel-btn {
   background: none;
   border: 1px solid #ef4444;
@@ -315,6 +335,23 @@ strong.rejected { color: #ef4444; }
 
 .doc-cancel-btn:hover {
   background: #ef4444;
+  color: white;
+}
+
+.doc-update-btn {
+  background: none;
+  border: 1px solid #3b82f6;
+  color: #3b82f6;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.6rem;
+  border-radius: 30px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.doc-update-btn:hover {
+  background: #3b82f6;
   color: white;
 }
 

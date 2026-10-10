@@ -1,78 +1,99 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import "../assets/css/style.css";
+import { useNavigate } from "react-router-dom";
+import { API } from "./api/apiRoutes";
+import { getStatusInfo, POST_SANCTION_STAGE_KEYS } from "./utils/leadStatus";
+
+const itemsPerPage = 10;
 
 const SourcingPipeline = () => {
-  const stats = [
-    { label: "DRAFT", count: 4, color: "#555" },
-    { label: "EKYC PENDING", count: 3, color: "#d28a22" },
-    { label: "BUREAU", count: 2, color: "#0b5ca8" },
-    { label: "IN SWATAH", count: 9, color: "#4b2fad" },
-    { label: "APPROVED", count: 98, color: "#008060" },
-    { label: "REJECTED", count: 26, color: "#c62828" },
-  ];
+  const navigate = useNavigate();
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const leads = [
-    {
-      id: "VED-7184-2026",
-      customer: "Suresh Kumar",
-      mobile: "98XXXX4521",
-      vehicle: "Terra Motors",
-      model: "Power Plus",
-      status: "Approved",
-      badge: "approved",
-      logged: "Today, 11:24",
-    },
-    {
-      id: "VED-7183-2026",
-      customer: "Anita Devi",
-      mobile: "99XXXX7812",
-      vehicle: "Mahindra Treo",
-      model: "Zor Plus",
-      status: "In Swatah · UW",
-      badge: "swatah",
-      logged: "Today, 10:08",
-    },
-    {
-      id: "VED-7181-2026",
-      customer: "Mohd. Imran",
-      mobile: "97XXXX1190",
-      vehicle: "YC Electric",
-      model: "Yatri Super",
-      status: "Bureau check",
-      badge: "bureau",
-      logged: "Today, 09:52",
-    },
-    {
-      id: "VED-7179-2026",
-      customer: "Rakesh Mahto",
-      mobile: "88XXXX3344",
-      vehicle: "Terra Motors",
-      model: "Power Plus",
-      status: "EKYC pending",
-      badge: "ekyc",
-      logged: "Yesterday, 17:30",
-    },
-    {
-      id: "VED-7176-2026",
-      customer: "Priya Singh",
-      mobile: "96XXXX5577",
-      vehicle: "Mahindra Treo",
-      model: "Treo Plus",
-      status: "Rejected · Scrub",
-      badge: "rejected",
-      logged: "Yesterday, 14:12",
-    },
-    {
-      id: "VED-7174-2026",
-      customer: "Vinod Yadav",
-      mobile: "90XXXX2233",
-      vehicle: "Terra Motors",
-      model: "Power Plus",
-      status: "Draft",
-      badge: "draft",
-      logged: "Yesterday, 11:05",
-    },
-  ];
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(`${API.CUSTOMERS_STAGE3}?_=${Date.now()}`);
+        const data = await res.json();
+        if (data.success) {
+          setCustomers(data.data || []);
+        } else {
+          alert(data.message || "Failed to fetch customer list");
+        }
+      } catch (err) {
+        console.error("Customer list API error:", err);
+        alert("Error fetching customer list");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCustomers();
+  }, []);
+
+  const stats = useMemo(() => {
+    const fiPending = customers.filter((c) => getStatusInfo(c).key === "fi_pending").length;
+    const sanctionPending = customers.filter((c) => getStatusInfo(c).key === "sanction_pending").length;
+    const postSanctionPending = customers.filter((c) => POST_SANCTION_STAGE_KEYS.includes(getStatusInfo(c).key)).length;
+    const delivered = customers.filter((c) => getStatusInfo(c).key === "delivered").length;
+
+    return [
+      { label: "TOTAL LEADS", count: customers.length, color: "#0b5ca8" },
+      { label: "FI PENDING", count: fiPending, color: "#555" },
+      { label: "SANCTION PENDING", count: sanctionPending, color: "#1d4ed8" },
+      { label: "POST SANCTION PENDING", count: postSanctionPending, color: "#5b21b6" },
+      { label: "DELIVERED", count: delivered, color: "#166534" },
+    ];
+  }, [customers]);
+
+  const filteredCustomers = customers.filter((cust) => {
+    const term = searchTerm.toLowerCase();
+    const matchesSearch =
+      (cust.application_id || "").toLowerCase().includes(term) ||
+      (cust.applicant_name || "").toLowerCase().includes(term) ||
+      (cust.applicant_mobile || "").includes(searchTerm);
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "post_sanction_pending"
+        ? POST_SANCTION_STAGE_KEYS.includes(getStatusInfo(cust).key)
+        : getStatusInfo(cust).key === statusFilter);
+    return matchesSearch && matchesStatus;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const currentCustomers = filteredCustomers.slice(startIndex, startIndex + itemsPerPage);
+
+  const goToPage = (page) => {
+    if (page >= 1 && page <= totalPages) setCurrentPage(page);
+  };
+
+  const handleSearch = (e) => {
+    setSearchTerm(e.target.value);
+    setCurrentPage(1);
+  };
+
+  const handleStatusFilter = (e) => {
+    setStatusFilter(e.target.value);
+    setCurrentPage(1);
+  };
+
+  const handleView = (cust) => {
+    navigate(`/lead-details/${cust.id}`);
+  };
+
+  // Post-sanction is one continuous process for the dealer: e-Mandate & e-Sign
+  // (LoanExecution.jsx) must complete first; only then does LoanExecution hand off
+  // to Vehicle Delivery. So this button always opens Loan Execution first, not
+  // Vehicle Delivery directly.
+  const handleAddVehicleDetails = (cust) => {
+    navigate(`/loan-execution/${cust.id}`);
+  };
 
   return (
     <div className="pipeline-page">
@@ -82,13 +103,10 @@ const SourcingPipeline = () => {
       </div>
 
       <div className="pipeline-content">
-        <div className="pipeline-stats">
+        <div className="pipeline-stats" style={{ gridTemplateColumns: `repeat(${stats.length}, 1fr)` }}>
           {stats.map((item) => (
             <div className="stat-card" key={item.label}>
-              <div
-                className="stat-line"
-                style={{ backgroundColor: item.color }}
-              ></div>
+              <div className="stat-line" style={{ backgroundColor: item.color }}></div>
               <span>{item.label}</span>
               <h2>{item.count}</h2>
             </div>
@@ -99,22 +117,22 @@ const SourcingPipeline = () => {
           <input
             type="text"
             placeholder="Search by Lead ID, customer name, mobile"
+            value={searchTerm}
+            onChange={handleSearch}
           />
 
-          <select>
-            <option>Last 30 days</option>
-            <option>Last 7 days</option>
-            <option>This month</option>
+          <select value={statusFilter} onChange={handleStatusFilter}>
+            <option value="all">All status</option>
+            <option value="fi_pending">FI Pending</option>
+            <option value="sanction_pending">Sanction Pending</option>
+            <option value="mandate_pending">Mandate Pending</option>
+            <option value="post_sanction_pending">Post Sanction Pending</option>
+            <option value="delivered">Delivered</option>
           </select>
 
-          <select>
-            <option>All status</option>
-            <option>Approved</option>
-            <option>Rejected</option>
-            <option>Draft</option>
-          </select>
-
-          <button>Export</button>
+          <button type="button" onClick={() => alert("Export coming soon")}>
+            Export
+          </button>
         </div>
 
         <div className="pipeline-table-box">
@@ -126,41 +144,73 @@ const SourcingPipeline = () => {
                 <th>Vehicle</th>
                 <th>Status</th>
                 <th>Logged</th>
+                <th>Action</th>
               </tr>
             </thead>
 
             <tbody>
-              {leads.map((lead) => (
-                <tr key={lead.id}>
-                  <td>{lead.id}</td>
-                  <td>
-                    <strong>{lead.customer}</strong>
-                    <br />
-                    <span>{lead.mobile}</span>
-                  </td>
-                  <td>
-                    <strong>{lead.vehicle}</strong>
-                    <br />
-                    <span>{lead.model}</span>
-                  </td>
-                  <td>
-                    <span className={`status-badge ${lead.badge}`}>
-                      ● {lead.status}
-                    </span>
-                  </td>
-                  <td>{lead.logged}</td>
+              {loading ? (
+                <tr>
+                  <td colSpan={6}>Loading customers...</td>
                 </tr>
-              ))}
+              ) : currentCustomers.length === 0 ? (
+                <tr>
+                  <td colSpan={6}>No leads match your filters.</td>
+                </tr>
+              ) : (
+                currentCustomers.map((cust) => {
+                  const status = getStatusInfo(cust);
+                  return (
+                    <tr key={cust.id}>
+                      <td>{cust.application_id}</td>
+                      <td>
+                        <strong>{cust.applicant_name}</strong>
+                        <br />
+                        <span>{cust.applicant_mobile}</span>
+                      </td>
+                      <td>
+                        <strong>{cust.manufacturer_name}</strong>
+                        <br />
+                        <span>{cust.model}</span>
+                      </td>
+                      <td>
+                        <span className={`status-badge ${status.badge}`}>● {status.label}</span>
+                      </td>
+                      <td>{cust.created_at}</td>
+                      <td>
+                        <button className="view-btn" onClick={() => handleView(cust)}>
+                          View
+                        </button>
+                        {POST_SANCTION_STAGE_KEYS.includes(status.key) && (
+                          <button
+                            className="view-btn"
+                            style={{ marginLeft: "8px" }}
+                            onClick={() => handleAddVehicleDetails(cust)}
+                          >
+                            Add vehicle details
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
 
           <div className="table-footer">
-            <p>Showing 1–6 of 142</p>
+            <p>
+              Showing {filteredCustomers.length === 0 ? 0 : startIndex + 1}–
+              {Math.min(startIndex + itemsPerPage, filteredCustomers.length)} of {filteredCustomers.length}
+            </p>
             <div className="pagination">
-              <button>‹</button>
-              <button className="active">1</button>
-              <button>2</button>
-              <button>›</button>
+              <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1}>
+                ‹
+              </button>
+              <button className="active">{currentPage}</button>
+              <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages}>
+                ›
+              </button>
             </div>
           </div>
         </div>
